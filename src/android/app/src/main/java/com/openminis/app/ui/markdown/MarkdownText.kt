@@ -201,6 +201,14 @@ private fun ParagraphBlock(
 
 @Composable
 private fun CodeBlockView(block: MarkdownParser.Block.CodeBlock) {
+    val lang = block.language.trim().lowercase()
+    if (lang == "openui" || lang == "openui-lang") {
+        OpenUIView(
+            code = block.code,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        return
+    }
     val context = LocalContext.current
     val codeColor = Color(0xFF4EC9B0) // Green code text
     val bgColor = MaterialTheme.colorScheme.surfaceContainerHighest

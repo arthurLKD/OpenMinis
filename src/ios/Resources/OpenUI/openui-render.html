@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" href="openui-styles.css">
+  <script src="openui-bundle.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      overflow-x: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    #root {
+      width: 100%;
+      min-height: 20px;
+      padding: 4px;
+    }
+    .error-container {
+      padding: 12px;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      color: #ef4444;
+      font-size: 13px;
+      line-height: 1.4;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .loading-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      color: #888;
+      font-size: 13px;
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(136, 136, 136, 0.3);
+      border-top-color: #888;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    let reactRoot = null;
+    let resizeObserver = null;
+    let lastReportedHeight = 0;
+
+    function reportHeight() {
+      const container = document.getElementById('root');
+      if (!container) return;
+      const height = Math.max(container.scrollHeight, container.offsetHeight, document.body.scrollHeight);
+      if (height > 0 && Math.abs(height - lastReportedHeight) >= 2) {
+        lastReportedHeight = height;
+        if (window.AndroidBridge && window.AndroidBridge.onHeightChange) {
+          window.AndroidBridge.onHeightChange(height);
+        }
+        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onHeightChange) {
+          window.webkit.messageHandlers.onHeightChange.postMessage({ height: height });
+        }
+      }
+    }
+
+    function initResizeObserver() {
+      if (resizeObserver) return;
+      const container = document.getElementById('root');
+      if (window.ResizeObserver && container) {
+        resizeObserver = new ResizeObserver(() => {
+          reportHeight();
+        });
+        resizeObserver.observe(container);
+        resizeObserver.observe(document.body);
+      }
+    }
+
+    function renderOpenUI(code, isDark) {
+      const container = document.getElementById('root');
+      try {
+        if (isDark) {
+          document.documentElement.setAttribute('data-openui-theme', 'dark');
+          document.documentElement.classList.add('dark');
+          document.body.classList.add('dark');
+        } else {
+          document.documentElement.setAttribute('data-openui-theme', 'light');
+          document.documentElement.classList.remove('dark');
+          document.body.classList.remove('dark');
+        }
+
+        if (!window.__OpenUI) {
+          container.innerHTML = '<div class="loading-container"><div class="spinner"></div><span>正在初始化 OpenUI 引擎...</span></div>';
+          reportHeight();
+          return;
+        }
+
+        const { React, createRoot, Renderer, openuiChatLibrary } = window.__OpenUI;
+
+        if (!reactRoot) {
+          reactRoot = createRoot(container);
+          initResizeObserver();
+        }
+
+        reactRoot.render(
+          React.createElement(Renderer, {
+            response: code,
+            library: openuiChatLibrary
+          })
+        );
+
+        setTimeout(reportHeight, 50);
+        setTimeout(reportHeight, 200);
+      } catch (err) {
+        console.error("OpenUI render error:", err);
+        container.innerHTML = '<div class="error-container">OpenUI 渲染解析失败: ' + (err.message || err) + '</div>';
+        reportHeight();
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initResizeObserver();
+      reportHeight();
+    });
+  </script>
+</body>
+</html>

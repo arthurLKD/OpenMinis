@@ -20,6 +20,7 @@ import CoreText
 import Photos
 import SwiftUI
 import UIKit
+import WebKit
 
 // MARK: - Code Block Attachment
 
@@ -28,6 +29,11 @@ final class CodeBlockAttachment: NSTextAttachment {
     let language: String?
     let theme: SelectableMarkdownTheme
     let quoteDepth: Int
+
+    var isOpenUI: Bool {
+        let lang = language?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        return lang == "openui" || lang == "openui-lang"
+    }
     /// Sequential index for view reuse across re-renders (set by MarkdownNSRenderer).
     var blockIndex: Int = 0
     /// [CodeGenDedup] Hash of (code, language), computed once by the renderer
@@ -109,6 +115,10 @@ final class CodeBlockAttachment: NSTextAttachment {
 
     override func attachmentBounds(for textContainer: NSTextContainer?, proposedLineFragment lineFrag: CGRect, glyphPosition position: CGPoint, characterIndex charIndex: Int) -> CGRect {
         let width = lineFrag.width
+        if isOpenUI {
+            let totalHeight: CGFloat = 280
+            return CGRect(x: 0, y: 0, width: width, height: totalHeight + Self.topMargin + Self.bottomMargin)
+        }
         let topOffset: CGFloat = (language != nil && !language!.isEmpty) ? 28 : 12
         let contentHeight = measureCodeHeight()
         let bottomPadding: CGFloat = 12
@@ -169,6 +179,9 @@ final class CodeBlockAttachment: NSTextAttachment {
     }
 
     func makeView(width: CGFloat) -> UIView {
+        if isOpenUI {
+            return makeOpenUIView(width: width)
+        }
         let wrapper = UIView()
         wrapper.backgroundColor = .clear
 
@@ -325,8 +338,107 @@ final class CodeBlockAttachment: NSTextAttachment {
         return wrapper
     }
 
+    private func makeOpenUIView(width: CGFloat) -> UIView {
+        let wrapper = UIView()
+        wrapper.backgroundColor = .clear
+
+        let inset = leftInset
+        let contentWidth = width - inset
+        let totalHeight: CGFloat = 280
+
+        let container = UIView(frame: CGRect(x: inset, y: Self.topMargin, width: contentWidth, height: totalHeight))
+        container.backgroundColor = theme.codeBlockBackground
+        container.layer.cornerRadius = 12
+        container.layer.borderWidth = 1
+        container.layer.borderColor = UIColor.white.withAlphaComponent(0.1).cgColor
+        container.clipsToBounds = true
+
+        // Top toolbar
+        let headerView = UIView(frame: CGRect(x: 0, y: 0, width: contentWidth, height: 32))
+        headerView.backgroundColor = UIColor.white.withAlphaComponent(0.04)
+
+        // OpenUI brand pill dot
+        let dot = UIView(frame: CGRect(x: 12, y: 12, width: 8, height: 8))
+        dot.backgroundColor = UIColor(red: 0.49, green: 0.23, blue: 0.93, alpha: 1.0)
+        dot.layer.cornerRadius = 4
+        headerView.addSubview(dot)
+
+        // OpenUI title
+        let titleLabel = UILabel(frame: CGRect(x: 26, y: 7, width: 80, height: 18))
+        titleLabel.text = "OpenUI"
+        titleLabel.font = .systemFont(ofSize: 12, weight: .bold)
+        titleLabel.textColor = .white.withAlphaComponent(0.9)
+        headerView.addSubview(titleLabel)
+
+        // Copy button
+        let copyButton = UIButton(type: .system)
+        let iconConfig = UIImage.SymbolConfiguration(pointSize: 9, weight: .medium)
+        copyButton.setImage(UIImage(systemName: "doc.on.doc", withConfiguration: iconConfig), for: .normal)
+        copyButton.tintColor = .white.withAlphaComponent(0.5)
+        copyButton.frame = CGRect(x: contentWidth - 40, y: 0, width: 40, height: 32)
+        let performCopy: () -> Void = { [weak self, weak copyButton] in
+            guard let self else { return }
+            UIPasteboard.general.string = self.code
+            copyButton?.setImage(UIImage(systemName: "checkmark", withConfiguration: iconConfig), for: .normal)
+            copyButton?.tintColor = .systemGreen
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                copyButton?.setImage(UIImage(systemName: "doc.on.doc", withConfiguration: iconConfig), for: .normal)
+                copyButton?.tintColor = .white.withAlphaComponent(0.5)
+            }
+        }
+        copyButton.addAction(UIAction { _ in performCopy() }, for: .touchUpInside)
+        let tapHandler = CodeCopyTapHandler(perform: performCopy)
+        let tap = UITapGestureRecognizer(target: tapHandler, action: #selector(CodeCopyTapHandler.handleTap))
+        tap.cancelsTouchesInView = false
+        copyButton.addGestureRecognizer(tap)
+        objc_setAssociatedObject(copyButton, &Self.copyTapHandlerKey, tapHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        headerView.addSubview(copyButton)
+
+        container.addSubview(headerView)
+
+        // WKWebView
+        let config = WKWebViewConfiguration()
+        let wv = WKWebView(frame: CGRect(x: 0, y: 32, width: contentWidth, height: totalHeight - 32), configuration: config)
+        wv.isOpaque = false
+        wv.backgroundColor = .clear
+        wv.scrollView.backgroundColor = .clear
+        wv.scrollView.isScrollEnabled = true
+
+        if let htmlURL = Bundle.main.url(forResource: "openui-render", withExtension: "html", subdirectory: "OpenUI") {
+            let openuiDir = htmlURL.deletingLastPathComponent()
+            wv.loadFileURL(htmlURL, allowingReadAccessTo: openuiDir)
+        }
+
+        let escaped = code
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "`", with: "\\`")
+            .replacingOccurrences(of: "$", with: "\\$")
+        let js = "renderOpenUI(`\(escaped)`, true);"
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak wv] in
+            wv?.evaluateJavaScript(js, completionHandler: nil)
+        }
+
+        container.addSubview(wv)
+        wrapper.addSubview(container)
+        wrapper.frame = CGRect(x: 0, y: 0, width: width, height: totalHeight + Self.topMargin + Self.bottomMargin)
+        return wrapper
+    }
+
     /// Update the code text in an existing view created by `makeView(width:)` without recreating.
     func updateExistingView(_ wrapper: UIView) {
+        if isOpenUI {
+            if let container = wrapper.subviews.first,
+               let wv = container.subviews.first(where: { $0 is WKWebView }) as? WKWebView {
+                let escaped = code
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "`", with: "\\`")
+                    .replacingOccurrences(of: "$", with: "\\$")
+                let js = "renderOpenUI(`\(escaped)`, true);"
+                wv.evaluateJavaScript(js, completionHandler: nil)
+            }
+            return
+        }
         guard let container = wrapper.subviews.first else { return }
         guard let scrollView = container.subviews.first(where: { $0 is UIScrollView }) as? UIScrollView else { return }
         guard let codeTextView = scrollView.subviews.first(where: { $0 is UITextView }) as? UITextView else { return }
