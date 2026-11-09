@@ -1,0 +1,120 @@
+name: Build Android APK (arm64-v8a)
+
+on:
+  push:
+    branches:
+      - feature/openui-support
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Minis Preview APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Go 1.25
+        uses: actions/setup-go@v5
+        with:
+          go-version: '^1.25'
+
+      - name: Set up Android SDK & NDK
+        run: |
+          echo "Installing Android Platform 36, Build Tools 35.0.0, NDK r28, CMake 3.22.1..."
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null 2>&1 || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install \
+            "platforms;android-36" \
+            "build-tools;35.0.0" \
+            "ndk;28.0.12433566" \
+            "cmake;3.22.1"
+
+          NDK_PATH="$ANDROID_HOME/ndk/28.0.12433566"
+          if [ ! -d "$NDK_PATH" ]; then
+            NDK_PATH=$(ls -d $ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -n 1)
+          fi
+          echo "Resolved NDK path: $NDK_PATH"
+          echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
+
+      - name: Set up gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          gomobile init
+
+      - name: Prepare build configuration
+        run: |
+          cp src/android/app/provider-customization.properties.example src/android/app/provider-customization.properties
+
+      - name: Build PRoot for Android
+        run: |
+          chmod +x deps/build_proot.sh
+          ./deps/build_proot.sh
+
+      - name: Prepare Android Sandbox Assets
+        run: |
+          chmod +x scripts/prepare_android_sandbox.sh
+          ./scripts/prepare_android_sandbox.sh
+
+      - name: Build rclone .aar
+        run: |
+          chmod +x deps/build_rclone_android.sh
+          ./deps/build_rclone_android.sh
+          mkdir -p src/android/app/libs
+          cp deps/build/rclone/rclone.aar src/android/app/libs/
+
+      - name: Build Android App (assembleDebug)
+        run: |
+          cd src/android
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Prepare Output APK
+        id: prepare_apk
+        run: |
+          APK_DIR="src/android/app/build/outputs/apk/debug"
+          SRC_APK=$(ls $APK_DIR/*.apk | head -n 1)
+          TARGET_APK="src/android/app/build/outputs/apk/debug/MinisApp-OpenUI-preview-arm64-v8a.apk"
+          cp "$SRC_APK" "$TARGET_APK"
+          echo "apk_path=$TARGET_APK" >> $GITHUB_OUTPUT
+          echo "apk_name=MinisApp-OpenUI-preview-arm64-v8a.apk" >> $GITHUB_OUTPUT
+          ls -lh "$TARGET_APK"
+
+      - name: Upload APK to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MinisApp-OpenUI-preview-arm64-v8a
+          path: ${{ steps.prepare_apk.outputs.apk_path }}
+          retention-days: 30
+
+      - name: Create GitHub Release & Upload Asset
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: openui-preview-${{ github.run_number }}
+          name: "Minis OpenUI Preview (build ${{ github.run_number }})"
+          body: |
+            ### Minis OpenUI 交互渲染体验版 (arm64-v8a)
+            - **独立包名**：`com.openminis.app.preview`（与已有官方 Minis 并存安装，绝不冲突，现有数据 100% 安全）
+            - **新增特性**：
+              - 内置 OpenUI 运行时离线渲染引擎 (`@openuidev/browser-bundle`)
+              - Markdown 交互式渲染组件 `OpenUIView`（支持动态预览、源码切换与深色模式自适应）
+              - 聊天流式渲染原生支持 ````openui ```` 代码块
+            - **架构**：`arm64-v8a`
+          files: ${{ steps.prepare_apk.outputs.apk_path }}
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
