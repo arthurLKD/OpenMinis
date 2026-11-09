@@ -76,18 +76,22 @@ jobs:
           mkdir -p src/android/app/libs
           cp deps/build/rclone/rclone.aar src/android/app/libs/
 
-      - name: Build Android App (assembleDebug)
+      - name: Build Android App (assembleRelease)
         run: |
           cd src/android
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --stacktrace
+          ./gradlew :app:assembleRelease --stacktrace
 
       - name: Prepare Output APK
         id: prepare_apk
         run: |
-          APK_DIR="src/android/app/build/outputs/apk/debug"
-          SRC_APK=$(ls $APK_DIR/*.apk | head -n 1)
-          TARGET_APK="src/android/app/build/outputs/apk/debug/MinisApp-OpenUI-preview-arm64-v8a.apk"
+          SRC_APK=$(find src/android/app/build/outputs/apk -name "*.apk" | grep -v "unaligned" | head -n 1)
+          if [ -z "$SRC_APK" ]; then
+            echo "Error: No APK found under build/outputs/apk!" >&2
+            exit 1
+          fi
+          echo "Found APK: $SRC_APK"
+          TARGET_APK="src/android/app/build/outputs/apk/MinisApp-OpenUI-preview-arm64-v8a.apk"
           cp "$SRC_APK" "$TARGET_APK"
           echo "apk_path=$TARGET_APK" >> $GITHUB_OUTPUT
           echo "apk_name=MinisApp-OpenUI-preview-arm64-v8a.apk" >> $GITHUB_OUTPUT
