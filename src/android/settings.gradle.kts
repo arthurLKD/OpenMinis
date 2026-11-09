@@ -16,7 +16,12 @@ dependencyResolutionManagement {
         // WebRTC APM) as the RealTimeCutVADLibrary SPM package iOS already
         // uses, so both platforms segment speech with the same model and the
         // same tunables.
-        maven { url = uri("https://jitpack.io") }
+        maven {
+            url = uri("https://jitpack.io")
+            content {
+                includeGroupByRegex("com\\.github\\..*")
+            }
+        }
         // rclone.aar — the backup feature's remote destinations (SMB / WebDAV /
         // SFTP / S3 / FTP). Not published to any Maven repo: it is built from
         // deps/rclone-mobile by `deps/build_rclone_android.sh`, which is also
