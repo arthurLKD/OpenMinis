@@ -15,7 +15,7 @@ jobs:
           ref: main # 强制检出 main 分支
       - uses: aormsby/Fork-Sync-With-Upstream-action@v3.4.3
         with:
-          upstream_repository: OpenMinis/OpenMinis
-          upstream_branch: main
-          target_branch: main
+          upstream_sync_repo: OpenMinis/OpenMinis
+          upstream_sync_branch: main
+          target_sync_branch: main
           target_repo_token: ${{ secrets.GITHUB_TOKEN }}
