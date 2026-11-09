@@ -87,6 +87,7 @@ android {
 
     buildTypes {
         getByName("debug") {
+            applicationIdSuffix = ".preview"
             buildConfigField("boolean", "DEV_TOOLS", "true")
         }
         // `perf`: the debug variant minus android:debuggable. ART refuses to
