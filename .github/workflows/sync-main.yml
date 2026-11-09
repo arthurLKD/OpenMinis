@@ -1,0 +1,21 @@
+name: Sync main with upstream
+on:
+  schedule:
+    - cron: '0 10 * * 1' # 每周一上午10点
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  sync:
+    if: github.event.repository.fork  # 确保仅在 fork 仓库中运行
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main # 强制检出 main 分支
+      - uses: aormsby/Fork-Sync-With-Upstream-action@v3.4.3
+        with:
+          upstream_repository: OpenMinis/OpenMinis
+          upstream_branch: main
+          target_branch: main
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
