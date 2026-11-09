@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.view.MotionEvent
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
@@ -81,7 +82,7 @@ fun OpenUIView(
 
     var mode by remember { mutableStateOf(initialMode) }
     var copied by remember { mutableStateOf(false) }
-    var contentHeightPx by remember { mutableFloatStateOf(240f * density.density) }
+    var contentHeightPx by remember { mutableFloatStateOf(320f * density.density) }
 
     if (copied) {
         LaunchedEffect(Unit) {
@@ -201,7 +202,7 @@ fun OpenUIView(
 
         // Content: Preview or Code
         if (mode == OpenUIMode.PREVIEW) {
-            val heightDp = with(density) { (contentHeightPx / density.density).dp.coerceIn(100.dp, 650.dp) }
+            val heightDp = with(density) { (contentHeightPx / density.density).dp.coerceIn(120.dp, 800.dp) }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -242,7 +243,7 @@ fun OpenUIView(
     }
 }
 
-@SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
+@SuppressLint("SetJavaScriptEnabled", "JavascriptInterface", "ClickableViewAccessibility")
 @Composable
 private fun OpenUIWebViewHost(
     code: String,
@@ -276,11 +277,28 @@ private fun OpenUIWebViewHost(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 )
                 setBackgroundColor(0x00000000)
+                isVerticalScrollBarEnabled = true
+                isHorizontalScrollBarEnabled = false
+
                 settings.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true
                     allowFileAccess = true
                     textZoom = 100
+                }
+
+                // Prevent parent list from intercepting vertical drag when scrolling inside OpenUI
+                setOnTouchListener { v, event ->
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN,
+                        MotionEvent.ACTION_MOVE,
+                        MotionEvent.ACTION_POINTER_DOWN ->
+                            v.parent?.requestDisallowInterceptTouchEvent(true)
+                        MotionEvent.ACTION_UP,
+                        MotionEvent.ACTION_CANCEL ->
+                            v.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                    false
                 }
 
                 addJavascriptInterface(
