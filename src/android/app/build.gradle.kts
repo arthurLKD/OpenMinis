@@ -85,10 +85,20 @@ android {
         }
     }
 
+    signingConfigs {
+        create("preview") {
+            storeFile = file("preview.keystore")
+            storePassword = "openminispreview"
+            keyAlias = "preview"
+            keyPassword = "openminispreview"
+        }
+    }
+
     buildTypes {
         getByName("debug") {
             applicationIdSuffix = ".preview"
             buildConfigField("boolean", "DEV_TOOLS", "true")
+            signingConfig = signingConfigs.getByName("preview")
         }
         // `perf`: the debug variant minus android:debuggable. ART refuses to
         // AOT-compile a debuggable app (`cmd package compile -m speed`
@@ -105,7 +115,7 @@ android {
             isProfileable = true
             matchingFallbacks += listOf("debug")
             buildConfigField("boolean", "DEV_TOOLS", "true")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("preview")
         }
         release {
             applicationIdSuffix = ".preview"
@@ -128,7 +138,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("preview")
         }
     }
 
