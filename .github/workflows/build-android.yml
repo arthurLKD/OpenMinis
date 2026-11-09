@@ -80,7 +80,14 @@ jobs:
         run: |
           cd src/android
           chmod +x gradlew
-          ./gradlew :app:assembleRelease --stacktrace
+          for i in 1 2 3; do
+            echo "Attempt $i to build Android App..."
+            ./gradlew :app:assembleRelease --stacktrace && break || {
+              if [ $i -eq 3 ]; then exit 1; fi
+              echo "Build failed on attempt $i, retrying in 10s..."
+              sleep 10
+            }
+          done
 
       - name: Prepare Output APK
         id: prepare_apk
