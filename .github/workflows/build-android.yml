@@ -163,7 +163,7 @@ jobs:
             ### Minis Preview (arm64-v8a)
             - Branch: `${{ github.ref_name }}`; commit: `${{ github.sha }}`.
             - Release/R8 build with OpenUI retained.
-            - Package: `com.openminis.app.preview`; separate from the official application.
+            - Package: `${{ github.ref_name == 'feature/vdisplay-support' && 'com.openminis.app.preview.vdisplay' || 'com.openminis.app.preview' }}`; separate from both the official application and OpenUI preview.
             - On `feature/vdisplay-support`: adds a Shizuku-backed virtual display, preview controls and a permission-gated agent CLI.
             - Virtual display compatibility depends on Android version, ROM and target app. Building successfully does not establish device compatibility.
             - Back up important data before updating. Signature compatibility must be verified before installation.

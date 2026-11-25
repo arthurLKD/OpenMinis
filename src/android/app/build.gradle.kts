@@ -96,7 +96,7 @@ android {
 
     buildTypes {
         getByName("debug") {
-            applicationIdSuffix = ".preview"
+            applicationIdSuffix = ".preview.vdisplay"
             buildConfigField("boolean", "DEV_TOOLS", "true")
             signingConfig = signingConfigs.getByName("preview")
         }
@@ -118,7 +118,7 @@ android {
             signingConfig = signingConfigs.getByName("preview")
         }
         release {
-            applicationIdSuffix = ".preview"
+            applicationIdSuffix = ".preview.vdisplay"
             // [OpenMinis#363] Produce native-debug-symbols.zip alongside the
             // APK so a stripped release .so can still be symbolicated after
             // the fact (`ndk-stack -sym`, or upload to Play Console). Without
