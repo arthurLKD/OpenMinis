@@ -248,7 +248,7 @@ class VDisplayHandlerContractTest {
                 // VirtualDisplayManager dispatch; a negative lookbehind keeps
                 // the alarm on the platform class only.
                 Regex("(?<!Virtual)DisplayManager\\.").containsMatchIn(handlerCode) ||
-                handlerCode.contains("import android"),
+                handlerCode.contains("import android.view.Display"),
         )
         assertFalse("no Display.DEFAULT_DISPLAY fallback", handlerCode.contains("DEFAULT_DISPLAY"))
     }

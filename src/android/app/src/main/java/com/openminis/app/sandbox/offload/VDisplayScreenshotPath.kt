@@ -71,7 +71,8 @@ internal object VDisplayScreenshotPath {
         // spelled as a path (absolute, or containing '/') keeps the shape they
         // asked for — still inside the mount, still validated below.
         // Absolute: the only accepted root is the attachments mount.
-        if (rest.startsWith("/")) {
+        val wasAbsolute = rest.startsWith("/")
+        if (wasAbsolute) {
             if (rest != ATTACHMENTS_ROOT && !rest.startsWith("$ATTACHMENTS_ROOT/")) {
                 return Resolved.Rejected(
                     "screenshot output must be under $ATTACHMENTS_ROOT " +
@@ -98,7 +99,7 @@ internal object VDisplayScreenshotPath {
             return Resolved.Rejected("--output must not contain empty path segments")
         }
         if (segments.any { it == "." || it == ".." }) {
-            return Resolved.Rejected("--output must not contain '.' or '..' segments")
+            return Resolved.Rejected("--output must not contain '.' or '..' segments escaping $ATTACHMENTS_ROOT")
         }
 
         val fileName = segments.last()
@@ -113,7 +114,7 @@ internal object VDisplayScreenshotPath {
         // (absolute or relative) is kept exactly as given — silently moving an
         // explicit `/var/minis/attachments/a.png` into the subdir would
         // contradict the accepted-shapes contract above.
-        val relative = if (hadSeparator) segments.joinToString("/") else "$SUBDIR/$fileName"
+        val relative = if (hadSeparator || wasAbsolute) segments.joinToString("/") else "$SUBDIR/$fileName"
         return Resolved.Ok(relative, fileName)
     }
 
@@ -143,7 +144,7 @@ internal object VDisplayScreenshotPath {
         canonicalize: (String) -> String,
     ): Resolved {
         val root = canonicalize(ATTACHMENTS_ROOT)
-        val full = canonicalize("$ATTACHMENTS_ROOT/$relativePath")
+        val full = canonicalize(relativePath)
         val prefix = if (root.endsWith("/")) root else "$root/"
         if (root.isEmpty() || !full.startsWith(prefix)) {
             return Resolved.Rejected(
