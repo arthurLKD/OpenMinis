@@ -184,6 +184,9 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        // [T-android-vdisplay] AIDL for the Shizuku-backed virtual display
+        // service (com.openminis.app.vdisplay.IVirtualDisplayService).
+        aidl = true
     }
 
     androidResources {

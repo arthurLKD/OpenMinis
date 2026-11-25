@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Accessibility
+import androidx.compose.material.icons.outlined.Monitor
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -213,6 +214,24 @@ fun OffloadPermissionScreen(
             onSystemAction = onOpenPrivilegedBackend,
             // The status row itself opens the same page so users can revisit
             // the setup walkthrough even after the manager is already ready.
+            onStatusRowClick = onOpenPrivilegedBackend,
+        )
+
+        // [T-vdisplay-ui] Background screen. Separate from Shizuku on purpose:
+        // the binder being authorized says nothing about whether the agent may
+        // drive a display, so this keeps its own default-denied policy and its
+        // own status row.
+        IntegrationSection(
+            iconVector = Icons.Outlined.Monitor,
+            iconTint = Color(0xFF5856D6),
+            sectionHeaderRes = R.string.perm_section_vdisplay,
+            sectionFooterRes = R.string.perm_vdisplay_section_footer,
+            toolName = "vdisplay",
+            descriptionRes = R.string.perm_vdisplay_cli_description,
+            systemReady = shizukuSnap.state == ShizukuManager.State.READY,
+            systemStatusTitleRes = shizukuSubtitleRes(shizukuSnap.state),
+            systemActionTitleRes = shizukuActionTitleRes(shizukuSnap.state),
+            onSystemAction = onOpenPrivilegedBackend,
             onStatusRowClick = onOpenPrivilegedBackend,
         )
 
@@ -458,6 +477,9 @@ private fun toolTitleRes(toolName: String): Int = when (toolName) {
     "photos" -> R.string.perm_tool_photos
     "a11y_cli" -> R.string.perm_tool_a11y_cli
     "shizuku_cli" -> R.string.perm_tool_shizuku_cli
+    // [T-vdisplay-ui] The background-screen CLI is its own permission surface:
+    // Shizuku authorization alone must not let the agent drive a display.
+    "vdisplay" -> R.string.vdisplay_tool_name
     else -> 0
 }
 

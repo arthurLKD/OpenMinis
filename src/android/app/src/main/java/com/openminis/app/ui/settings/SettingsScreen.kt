@@ -41,6 +41,7 @@ import androidx.compose.material.icons.outlined.FrontHand
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Monitor
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Handyman
@@ -119,6 +120,8 @@ fun SettingsScreen(
     // OEM autostart guidance). Default no-op so older callers/tests
     // don't need to be retrofitted.
     onBackgroundClick: () -> Unit = {},
+    /** [T-vdisplay-ui] 后台屏 — background virtual display page. */
+    onVDisplayClick: () -> Unit = {},
     // Hook accepted for forward-compat with AppNavigation's About route. The
     // About row below still has a TODO onClick in HEAD; future settings-bucket
     // work will wire this through.
@@ -349,6 +352,16 @@ fun SettingsScreen(
                     title = stringResource(R.string.bg_section_header),
                     subtitle = stringResource(R.string.bg_section_subtitle),
                     onClick = onBackgroundClick,
+                )
+                // [T-vdisplay-ui] Sits beside Background & Notifications: both
+                // are about Minis continuing to work while not in front. This
+                // row opens the virtual display itself, not an OS setting.
+                SettingsItem(
+                    icon = Icons.Outlined.Monitor,
+                    iconColor = Color(0xFF5856D6),
+                    title = stringResource(R.string.settings_vdisplay),
+                    subtitle = stringResource(R.string.settings_vdisplay_subtitle),
+                    onClick = onVDisplayClick,
                     showDivider = false,
                 )
             }

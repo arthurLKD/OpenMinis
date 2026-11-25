@@ -34,3 +34,18 @@
 }
 -keep class com.openminis.app.ui.markdown.OpenUIViewKt** { *; }
 
+
+# [T-android-vdisplay] Shizuku instantiates the virtual-display UserService
+# entry point BY NAME via reflection inside the privileged UserService
+# process, and the AIDL Stub dispatches transactions to its methods. R8 must
+# not rename or shrink the class or its two constructors, otherwise Shizuku
+# fails with ClassNotFoundException / NoSuchMethodException at bind time —
+# a release-only failure (debug builds don't minify).
+-keep class com.openminis.app.vdisplay.VDisplayUserService {
+    <init>(android.content.Context);
+    <init>();
+}
+# The AIDL binder interface is passed across processes; keep the Stub/Proxy
+# plumbing and the interface itself so cross-process transactions resolve.
+-keep class com.openminis.app.vdisplay.IVirtualDisplayService { *; }
+-keep class com.openminis.app.vdisplay.IVirtualDisplayService$* { *; }

@@ -27,6 +27,7 @@ import com.openminis.app.ui.navigation.Routes
  *   minis://settings/logs                       → Log management
  *   minis://settings/appearance                 → Appearance
  *   minis://settings/background                 → Background settings
+ *   minis://settings/vdisplay                   → 后台屏 (background virtual display)
  *   minis://settings/about                      → About
  *   minis://settings/permissions                → Permissions
  *   minis://settings/environments[?create_key=...&create_value=...&create_note=...]
@@ -195,6 +196,10 @@ object DeepLinkHandler {
             }
             "appearance" -> DeepLinkAction.OpenSettingsScreen(Routes.APPEARANCE)
             "background" -> DeepLinkAction.OpenSettingsScreen(Routes.BACKGROUND)
+            // [T-vdisplay-ui] Background virtual display page. Same path as iOS
+            // uses for the same feature, with the underscore form as an alias.
+            "vdisplay", "v_display", "virtual-display", "virtual_display" ->
+                DeepLinkAction.OpenSettingsScreen(Routes.VDISPLAY)
             "about" -> DeepLinkAction.OpenSettingsScreen(Routes.ABOUT)
             "network" -> DeepLinkAction.OpenSettingsScreen(Routes.NETWORK)
             // [FEAT-261021-04] Same paths and aliases as iOS DeepLinkRouter.

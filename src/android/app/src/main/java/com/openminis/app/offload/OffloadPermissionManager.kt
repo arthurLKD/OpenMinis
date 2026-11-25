@@ -89,6 +89,17 @@ object OffloadPermissionManager {
         // is already authorized.
         ToolPermissionInfo("a11y_cli", "android-a11y-cli", PermissionCategory.INTEGRATIONS, PermissionLevel.NOT_ALLOWED),
         ToolPermissionInfo("shizuku_cli", "android-shizuku-cli", PermissionCategory.INTEGRATIONS, PermissionLevel.NOT_ALLOWED),
+        // [T-vdisplay-cli] `android-vdisplay` — Minis' own background virtual
+        // display. SEPARATE from `shizuku_cli` on purpose: the display is
+        // created by a Shizuku-privileged process, but authorizing Shizuku is
+        // an install-level decision ("let Minis use privileged APIs"), while
+        // letting an agent drive an off-screen display — capture it, type into
+        // it, launch apps on it — is a distinct capability the user should opt
+        // into deliberately. Hence its own default-NOT_ALLOWED entry rather
+        // than riding on shizuku_cli's grant. `android-vdisplay status` is
+        // readable regardless (see VDisplayOffloadHandler), so a refusal stays
+        // diagnosable.
+        ToolPermissionInfo("vdisplay", "android-vdisplay", PermissionCategory.INTEGRATIONS, PermissionLevel.NOT_ALLOWED),
     )
 
     /** Stable session-id used by NativeOffloadHandlers when calling

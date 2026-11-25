@@ -1,0 +1,18 @@
+OpenMinis
+Copyright 2026 OpenMinis
+
+This product includes software adapted from Mika
+(https://github.com/wangzan101/mika):
+  Copyright 2026 wangzan101
+  Licensed under the Apache License, Version 2.0
+
+which itself includes software adapted from scrcpy
+(https://github.com/Genymobile/scrcpy):
+  Copyright (C) 2018 Genymobile
+  Copyright (C) 2018-2024 Romain Vimont
+  Licensed under the Apache License, Version 2.0
+
+The adapted portions live in src/android/app/src/main/java/com/openminis/app/vdisplay/
+(shell-identity context, virtual-display creation flags and keep-awake,
+targeted input injection, launch-on-display) and
+src/android/app/src/main/aidl/com/openminis/app/vdisplay/.

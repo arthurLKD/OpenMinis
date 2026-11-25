@@ -73,6 +73,8 @@ import com.openminis.app.ui.settings.MemoryFileEditScreen
 import com.openminis.app.ui.settings.MemoryManagementScreen
 import com.openminis.app.ui.settings.OffloadPermissionScreen
 import com.openminis.app.ui.settings.ShizukuPermissionScreen
+import com.openminis.app.ui.vdisplay.CoreVDisplayBackend
+import com.openminis.app.ui.vdisplay.VDisplayScreen
 import com.openminis.app.sandbox.RootfsManager
 import com.openminis.app.sandbox.TerminalSession
 import com.openminis.app.ui.terminal.TerminalScreen
@@ -193,6 +195,11 @@ object Routes {
     const val SHIZUKU = "shizuku"
     /** T323: System Permissions (Accessibility service status, etc.). */
     const val SYSTEM_PERMISSIONS = "system_permissions"
+    /**
+     * [T-vdisplay-ui] 后台屏 — background virtual display page.
+     * Reachable from Settings and from minis://settings/vdisplay.
+     */
+    const val VDISPLAY = "vdisplay"
     const val USAGE_STATS = "usage_stats"
     const val LOGS = "logs"
     const val LOG_DETAIL = "log_detail/{fileName}"
@@ -666,6 +673,7 @@ fun AppNavigation(
                 onUsageClick = { navController.safeNavigate(Routes.USAGE_STATS) },
                 onAppearanceClick = { navController.safeNavigate(Routes.APPEARANCE) },
                 onBackgroundClick = { navController.safeNavigate(Routes.BACKGROUND) },
+                onVDisplayClick = { navController.safeNavigate(Routes.VDISPLAY) },
                 onLogsClick = { navController.safeNavigate(Routes.LOGS) },
                 onAboutClick = { navController.safeNavigate(Routes.ABOUT) },
                 onMountedFoldersClick = { navController.safeNavigate(Routes.MOUNTED_FOLDERS) },
@@ -1469,6 +1477,17 @@ fun AppNavigation(
         composable(Routes.SHIZUKU) {
             ShizukuPermissionScreen(
                 onBack = { navController.safePopBackStack() },
+            )
+        }
+
+        // [T-vdisplay-ui] Background screen. The backend is the core's; this
+        // page never creates a display itself.
+        composable(Routes.VDISPLAY) {
+            val backend = remember { CoreVDisplayBackend() }
+            VDisplayScreen(
+                onBack = { navController.safePopBackStack() },
+                onOpenShizukuSettings = { navController.safeNavigate(Routes.SHIZUKU) },
+                backend = backend,
             )
         }
 

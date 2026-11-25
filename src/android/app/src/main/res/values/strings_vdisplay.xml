@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [T-vdisplay-ui] Background virtual display ("后台屏") page + its
+     Permissions entry. Kept in its own file so the feature's strings can be
+     reviewed as one unit. -->
+<resources>
+    <string name="vdisplay_title">Background screen</string>
+    <string name="vdisplay_refresh">Refresh</string>
+
+    <string name="vdisplay_privileged_header">Shizuku required</string>
+    <string name="vdisplay_privileged_footer">The background screen is created as the shell user, so Shizuku (or a compatible AXManager / Sui) must be running and must have authorized Minis. This page never requests the permission itself.</string>
+    <string name="vdisplay_privileged_row">Open Shizuku settings</string>
+    <string name="vdisplay_privileged_row_subtitle">Check the connection and authorize Minis</string>
+
+    <string name="vdisplay_status_header">Screen status</string>
+    <string name="vdisplay_status_footer">Leaving this page only stops the preview refresh. The virtual display and the apps on it keep running.</string>
+    <string name="vdisplay_status_stopped">Stopped</string>
+    <string name="vdisplay_status_starting">Starting…</string>
+    <string name="vdisplay_status_running">Running</string>
+    <string name="vdisplay_status_stopping">Stopping…</string>
+    <string name="vdisplay_status_stopped_hint">No virtual display yet</string>
+    <string name="vdisplay_status_display_id">Display %1$d</string>
+    <string name="vdisplay_status_geometry">%1$d × %2$d at %3$d dpi</string>
+    <string name="vdisplay_start">Start background screen</string>
+    <string name="vdisplay_stop">Stop and release</string>
+
+    <string name="vdisplay_focus_shared_title">Focus is shared with the main screen</string>
+    <string name="vdisplay_focus_shared_subtitle">This system rejected the trusted-display flags, so the core explicitly downgraded the display. Input still goes only to this display, but the foreground app on the physical screen may see focus changes.</string>
+
+    <string name="vdisplay_geometry_header">Size and density</string>
+    <string name="vdisplay_geometry_footer">Size is in pixels, density in dpi (the same unit as wm density). Changing either requires re-creating the display; a live surface cannot be resized.</string>
+    <string name="vdisplay_width">Width</string>
+    <string name="vdisplay_height">Height</string>
+    <string name="vdisplay_density">Density</string>
+    <string name="vdisplay_geometry_summary">%1$d × %2$d, density scale %3$s×</string>
+    <string name="vdisplay_geometry_invalid">Width and height must be %1$d–%2$d, density %3$d–%4$d.</string>
+    <string name="vdisplay_apply_restart">Apply and re-create screen</string>
+
+    <string name="vdisplay_preview_header">Screen preview</string>
+    <string name="vdisplay_preview_footer">The preview refreshes at most 2 frames per second (adjustable 1–8) and stops as soon as you leave this page. A tap sends a tap, a drag sends a swipe; coordinates only ever target the virtual display Minis created.</string>
+    <string name="vdisplay_preview_cd">Background screen preview</string>
+    <string name="vdisplay_preview_idle">Waiting for the first frame</string>
+    <string name="vdisplay_preview_waiting">Reading the screen…</string>
+    <string name="vdisplay_preview_buffer">Buffer %1$d × %2$d</string>
+    <string name="vdisplay_preview_fps">Preview rate: %1$d frames per second</string>
+    <string name="vdisplay_key_back">Back</string>
+    <string name="vdisplay_key_enter">Enter</string>
+
+    <string name="vdisplay_launch_header">Launch an app</string>
+    <string name="vdisplay_launch_footer">Launches the app onto this virtual display only. If the app is currently in use on the physical screen, the core refuses to launch it rather than moving what you are looking at.</string>
+    <string name="vdisplay_launch_field">Package name</string>
+    <string name="vdisplay_launch_button">Launch on background screen</string>
+
+    <string name="vdisplay_text_header">Text input</string>
+    <string name="vdisplay_text_footer">Text is delivered as key events to the app at the top of the virtual display and supports printable ASCII only. For other scripts, paste through the clipboard instead.</string>
+    <string name="vdisplay_text_field">Text to type</string>
+    <string name="vdisplay_text_enter">Press Enter after typing</string>
+    <string name="vdisplay_text_send">Send to background screen</string>
+
+    <string name="vdisplay_notice_launch">Launch requested</string>
+    <string name="vdisplay_notice_text">Text sent</string>
+    <string name="vdisplay_notice_config">Screen re-created at the new size</string>
+
+    <string name="vdisplay_error_header">Something failed</string>
+    <string name="vdisplay_error_dismiss">Dismiss</string>
+    <string name="vdisplay_err_shizuku">Shizuku is not ready</string>
+    <string name="vdisplay_err_permission">Authorization or connection failed</string>
+    <string name="vdisplay_err_create">Could not create the virtual display</string>
+    <string name="vdisplay_err_not_running">The background screen is not running</string>
+    <string name="vdisplay_err_config">Size or density is out of range</string>
+    <string name="vdisplay_err_unsupported">This system does not support the requested configuration</string>
+    <string name="vdisplay_err_package">No such app</string>
+    <string name="vdisplay_err_main_in_use">That app is in use on the main screen</string>
+    <string name="vdisplay_err_launch">Launch failed</string>
+    <string name="vdisplay_err_input">Input did not reach the background screen</string>
+    <string name="vdisplay_err_text">The text was rejected</string>
+    <string name="vdisplay_err_capture">Could not read a frame</string>
+    <string name="vdisplay_err_service_died">The background screen service disconnected — start it again</string>
+    <string name="vdisplay_err_unknown">Unknown error</string>
+
+    <string name="vdisplay_tool_name">android-vdisplay</string>
+    <string name="vdisplay_tool_description">Command line for the virtual display Minis owns</string>
+    <string name="settings_vdisplay">Background screen</string>
+    <string name="settings_vdisplay_subtitle">Run and control a virtual display through Shizuku</string>
+    <string name="perm_section_vdisplay">Background screen</string>
+    <string name="perm_vdisplay_cli_description">Background-screen CLI: create, screenshot, tap/swipe/key, launch apps and type text. It only ever targets the virtual display Minis created and never falls back to the physical screen.</string>
+    <string name="perm_vdisplay_section_footer">This switch is separate from Shizuku authorization. Even with Shizuku granted, the agent cannot use the background screen until it is allowed here. Revoking it, or losing the service, releases the display and the preview together.</string>
+</resources>

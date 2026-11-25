@@ -54,6 +54,7 @@ import com.openminis.app.sandbox.offload.PlayerOffloadHandler
 import com.openminis.app.sandbox.offload.SpeakOffloadHandler
 import com.openminis.app.sandbox.offload.SpeechOffloadHandler
 import com.openminis.app.sandbox.offload.WeatherOffloadHandler
+import com.openminis.app.sandbox.offload.VDisplayOffloadHandler
 import com.openminis.app.service.SessionActivityTracker
 import com.openminis.app.ui.MinisImageFetcher
 import kotlinx.coroutines.launch
@@ -760,6 +761,14 @@ class MinisApp : Application(), ImageLoaderFactory {
         NativeOffloadServer.register("android-weather", WeatherOffloadHandler(this))
         // T323: UI-layer automation backed by MinisAccessibilityService.
         NativeOffloadServer.register("android-a11y-cli", AccessibilityOffloadHandler(this))
+        // [T-vdisplay-cli] `android-vdisplay` — background virtual display
+        // ("后台屏"). Registered unconditionally like every other tool: the
+        // handler short-circuits with typed errors when the agent permission
+        // or Shizuku is missing, so registration never depends on runtime
+        // state. Registering also makes PRootKernel.installHandlerStubs write
+        // /usr/local/bin/android-vdisplay on the next rootfs boot, which is
+        // what makes the name resolvable on PATH at all.
+        NativeOffloadServer.register("android-vdisplay", VDisplayOffloadHandler(this))
         NativeOffloadServer.register("minis-model-use", ModelUseOffloadHandler(this, providerRepository))
         // T-config: minis-config — agent-facing settings management
         // (read/write registered ConfigFields with audit + revert).
@@ -800,6 +809,12 @@ class MinisApp : Application(), ImageLoaderFactory {
         // up the binder lifecycle listeners + StateFlow.
         NativeOffloadServer.register("android-shizuku-cli", ShizukuOffloadHandler(this))
         com.openminis.app.offload.ShizukuManager.init(this)
+
+        // [T-vdisplay-core] Register the background virtual display's binder
+        // lifecycle listener right after Shizuku. Idempotent, and every vdisplay
+        // entry point also lazily initializes, so a failure here is not fatal.
+        runCatching { com.openminis.app.vdisplay.VirtualDisplayManager.init(this) }
+            .onFailure { android.util.Log.w("MinisApp", "VirtualDisplayManager.init failed: ${it.message}") }
 
         // T-android-minis-debug-cli: shell-side CLI wrapper around the in-app
         // DebugServer (127.0.0.1:5321) JSON-RPC. DEBUG-only — Release builds

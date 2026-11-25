@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/openui-support
+      - feature/vdisplay-support
   workflow_dispatch:
 
 permissions:
@@ -76,10 +77,13 @@ jobs:
           mkdir -p src/android/app/libs
           cp deps/build/rclone/rclone.aar src/android/app/libs/
 
-      - name: Build Android App (assembleRelease)
+      - name: Build Android App (tests and assembleRelease)
         run: |
           cd src/android
           chmod +x gradlew
+          if [ "$GITHUB_REF_NAME" = "feature/vdisplay-support" ]; then
+            ./gradlew :app:testReleaseUnitTest --tests '*VDisplay*' --stacktrace
+          fi
           for i in 1 2 3; do
             echo "Attempt $i to build Android App..."
             ./gradlew :app:assembleRelease --stacktrace && break || {
@@ -98,16 +102,16 @@ jobs:
             exit 1
           fi
           echo "Found APK: $SRC_APK"
-          TARGET_APK="src/android/app/build/outputs/apk/MinisApp-OpenUI-preview-arm64-v8a.apk"
+          TARGET_APK="src/android/app/build/outputs/apk/MinisApp-${{ github.ref_name == 'feature/vdisplay-support' && 'VDisplay' || 'OpenUI' }}-preview-arm64-v8a.apk"
           cp "$SRC_APK" "$TARGET_APK"
           echo "apk_path=$TARGET_APK" >> $GITHUB_OUTPUT
-          echo "apk_name=MinisApp-OpenUI-preview-arm64-v8a.apk" >> $GITHUB_OUTPUT
+          echo "apk_name=$(basename "$TARGET_APK")" >> $GITHUB_OUTPUT
           ls -lh "$TARGET_APK"
 
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: MinisApp-OpenUI-preview-arm64-v8a
+          name: ${{ github.ref_name == 'feature/vdisplay-support' && 'MinisApp-VDisplay-preview-arm64-v8a' || 'MinisApp-OpenUI-preview-arm64-v8a' }}
           path: ${{ steps.prepare_apk.outputs.apk_path }}
           retention-days: 30
 
@@ -115,16 +119,16 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: success()
         with:
-          tag_name: openui-preview-${{ github.run_number }}
-          name: "Minis OpenUI Preview (build ${{ github.run_number }})"
+          tag_name: ${{ github.ref_name == 'feature/vdisplay-support' && 'vdisplay-preview' || 'openui-preview' }}-${{ github.run_number }}
+          name: "Minis ${{ github.ref_name == 'feature/vdisplay-support' && 'VDisplay' || 'OpenUI' }} Preview (build ${{ github.run_number }})"
           body: |
-            ### Minis OpenUI 交互渲染体验版 (arm64-v8a)
-            - **独立包名**：`com.openminis.app.preview`（与已有官方 Minis 并存安装，绝不冲突，现有数据 100% 安全）
-            - **新增特性**：
-              - 内置 OpenUI 运行时离线渲染引擎 (`@openuidev/browser-bundle`)
-              - Markdown 交互式渲染组件 `OpenUIView`（支持动态预览、源码切换与深色模式自适应）
-              - 聊天流式渲染原生支持 ````openui ```` 代码块
-            - **架构**：`arm64-v8a`
+            ### Minis Preview (arm64-v8a)
+            - Branch: `${{ github.ref_name }}`; commit: `${{ github.sha }}`.
+            - Release/R8 build with OpenUI retained.
+            - Package: `com.openminis.app.preview`; separate from the official application.
+            - On `feature/vdisplay-support`: adds a Shizuku-backed virtual display, preview controls and a permission-gated agent CLI.
+            - Virtual display compatibility depends on Android version, ROM and target app. Building successfully does not establish device compatibility.
+            - Back up important data before updating. Signature compatibility must be verified before installation.
           files: ${{ steps.prepare_apk.outputs.apk_path }}
           prerelease: true
         env:
