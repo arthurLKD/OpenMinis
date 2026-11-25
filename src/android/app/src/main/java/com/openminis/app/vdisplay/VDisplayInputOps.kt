@@ -79,11 +79,14 @@ internal fun VDisplayShellServer.injectStrokeChecked(
             x = xs[i].toFloat()
             y = ys[i].toFloat()
             pressure = 1f
-            // MotionEvent.PointerCoords has no `size` property (that is
-            // PointerProperties.toolMajorAxis / toolMinorAxis); assigning it
-            // resolved to `size()` on Pair and failed to compile.
-            toolMajorAxis = 1f
-            toolMinorAxis = 1f
+            // PointerCoords carries the contact size and the touch ellipse as
+            // `size` / `toolMajor` / `toolMinor` (getSize/getToolMajor/
+            // getToolMinor). `toolMajorAxis` / `toolMinorAxis` do not exist and
+            // failed to compile; these values keep the pointer a plain finger
+            // contact rather than a zero-area one some ROMs ignore.
+            size = 1f
+            toolMajor = 1f
+            toolMinor = 1f
         }
         return MotionEvent.obtain(down, down + times[i], action, 1, arrayOf(props), arrayOf(coords), 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
     }
