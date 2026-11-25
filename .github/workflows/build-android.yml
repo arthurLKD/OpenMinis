@@ -14,6 +14,9 @@ jobs:
   build:
     name: Build Minis Preview APK
     runs-on: ubuntu-latest
+    # Without an explicit bound GitHub only kills the job at 6h, so a hung unit
+    # test would burn the whole allowance and hide the real failure.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository (with submodules)
@@ -28,13 +31,17 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Go 1.25
+      - name: Set up Go 1.26.x
         uses: actions/setup-go@v5
         with:
           # Pinned to 1.26.x: '^1.25' floats to 1.27.x, where
           # github.com/go-json-experiment/json (an rclone dependency) no longer
           # compiles (undefined: json.SkipFunc) and the rclone .aar build fails.
           go-version: '1.26.x'
+          # The Go modules live in deps/rclone-mobile, not at the repo root;
+          # without this the cache key never matches and every run re-downloads
+          # ~200 modules.
+          cache-dependency-path: deps/rclone-mobile/go.sum
 
       - name: Set up Android SDK & NDK
         run: |
@@ -80,31 +87,59 @@ jobs:
           mkdir -p src/android/app/libs
           cp deps/build/rclone/rclone.aar src/android/app/libs/
 
-      - name: Build Android App (tests and assembleRelease)
+      - name: Cache Gradle caches and wrapper
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('src/android/gradle/wrapper/gradle-wrapper.properties', 'src/android/*.gradle*', 'src/android/gradle/libs.versions.toml') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Run VDisplay unit tests
+        if: github.ref_name == 'feature/vdisplay-support'
+        # A hung test used to wait for the 6h job ceiling. 20 minutes is far
+        # above the observed runtime of these five test classes.
+        timeout-minutes: 20
         run: |
           cd src/android
           chmod +x gradlew
-          if [ "$GITHUB_REF_NAME" = "feature/vdisplay-support" ]; then
-            ./gradlew :app:testGithubReleaseUnitTest :app:testStoreReleaseUnitTest --tests '*VDisplay*' --stacktrace
-          fi
-          for i in 1 2 3; do
-            echo "Attempt $i to build Android App..."
-            ./gradlew :app:assembleRelease --stacktrace && break || {
-              if [ $i -eq 3 ]; then exit 1; fi
-              echo "Build failed on attempt $i, retrying in 10s..."
-              sleep 10
-            }
-          done
+          # --tests is a per-task option: Gradle binds it to the task name that
+          # immediately precedes it, and a second task name ends that binding.
+          # Listing one task here keeps the filter effective; add
+          # `--tests '<pattern>'` again after any further task name.
+          ./gradlew :app:testGithubReleaseUnitTest --tests '*VDisplay*' --stacktrace
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: |
+            src/android/app/build/reports/tests/**
+            src/android/app/build/test-results/**
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Assemble release APK
+        # Release/R8 packaging only; a deterministic failure is not worth
+        # re-running three times, which tripled the wall clock on real errors.
+        timeout-minutes: 35
+        run: |
+          cd src/android
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --stacktrace
 
       - name: Prepare Output APK
         id: prepare_apk
         run: |
-          SRC_APK=$(find src/android/app/build/outputs/apk -name "*.apk" | grep -v "unaligned" | head -n 1)
-          if [ -z "$SRC_APK" ]; then
-            echo "Error: No APK found under build/outputs/apk!" >&2
+          SRC_APK="src/android/app/build/outputs/apk/github/release/app-github-release.apk"
+          if [ ! -f "$SRC_APK" ]; then
+            echo "Error: expected APK missing: $SRC_APK" >&2
+            ls -R src/android/app/build/outputs/apk 2>/dev/null || true
             exit 1
           fi
-          echo "Found APK: $SRC_APK"
           TARGET_APK="src/android/app/build/outputs/apk/MinisApp-${{ github.ref_name == 'feature/vdisplay-support' && 'VDisplay' || 'OpenUI' }}-preview-arm64-v8a.apk"
           cp "$SRC_APK" "$TARGET_APK"
           echo "apk_path=$TARGET_APK" >> $GITHUB_OUTPUT

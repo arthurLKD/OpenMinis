@@ -284,6 +284,16 @@ afterEvaluate {
     }
 }
 
+// [T-ci-test-visibility] Print every test as it starts and finishes. Without
+// this the CI log ends at the last failure and a hung test leaves 5+ hours of
+// silence, which is what run 45625874164 looked like.
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events("started", "passed", "failed", "skipped")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.SHORT
+    }
+}
+
 // [T-android-downgrade-compat] Room needs an explicit output directory once
 // `exportSchema = true`. The generated JSON is COMMITTED: it is what
 // MigrationTestHelper replays to prove every upgrade — and every no-op

@@ -368,8 +368,13 @@ class AnthropicProvider(
      *   Returns null when the prompt is null/empty (iOS parity — no empty `system` field).
      */
     internal fun resolveSystemPrompt(userPrompt: String?): JSONArray? {
-        val claudeCodePrefix = com.openminis.app.auth.ClaudeOAuthManager.ANTHROPIC_OAUTH_IDENTIFIER_PROMPT
         if (isOAuth) {
+            // Read the identifier only on the OAuth path: the getter throws when
+            // the build has no ANTHROPIC_OAUTH_IDENTIFIER_PROMPT (the public
+            // example file ships it empty), and an API-key request must never
+            // fail because of a value it does not use.
+            val claudeCodePrefix =
+                com.openminis.app.auth.ClaudeOAuthManager.ANTHROPIC_OAUTH_IDENTIFIER_PROMPT
             // Strip the prefix if the caller already prepended it; the tail is the real user prompt.
             val tail = when {
                 userPrompt == null -> ""
