@@ -82,7 +82,7 @@ jobs:
           cd src/android
           chmod +x gradlew
           if [ "$GITHUB_REF_NAME" = "feature/vdisplay-support" ]; then
-            ./gradlew :app:testReleaseUnitTest --tests '*VDisplay*' --stacktrace
+            ./gradlew :app:testGithubReleaseUnitTest :app:testStoreReleaseUnitTest --tests '*VDisplay*' --stacktrace
           fi
           for i in 1 2 3; do
             echo "Attempt $i to build Android App..."
