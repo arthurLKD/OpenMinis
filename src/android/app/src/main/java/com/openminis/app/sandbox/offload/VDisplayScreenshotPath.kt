@@ -143,7 +143,12 @@ internal object VDisplayScreenshotPath {
         relativePath: String,
         canonicalize: (String) -> String,
     ): Resolved {
-        val root = canonicalize(ATTACHMENTS_ROOT)
+        val rawRoot = canonicalize(ATTACHMENTS_ROOT)
+        val root = if (rawRoot.endsWith(ATTACHMENTS_ROOT)) {
+            rawRoot.removeSuffix(ATTACHMENTS_ROOT).trimEnd('/')
+        } else {
+            rawRoot
+        }
         val full = canonicalize(relativePath)
         val prefix = if (root.endsWith("/")) root else "$root/"
         if (root.isEmpty() || !full.startsWith(prefix)) {

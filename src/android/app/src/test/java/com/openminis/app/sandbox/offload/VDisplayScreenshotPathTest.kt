@@ -213,7 +213,10 @@ class VDisplayScreenshotPathTest {
     fun `a canonical path inside the mount root is accepted`() {
         val r = VDisplayScreenshotPath.canonicalContainment(
             "vdisplay/a.png",
-            canonicalize = { rel -> "/data/data/app/files/minis/attachments/$rel" },
+            canonicalize = { rel ->
+                if (rel == VDisplayScreenshotPath.ATTACHMENTS_ROOT) "/data/data/app/files/minis/attachments"
+                else "/data/data/app/files/minis/attachments/$rel"
+            },
         )
         assertTrue(r is VDisplayScreenshotPath.Resolved.Ok)
         assertEquals("vdisplay/a.png", (r as VDisplayScreenshotPath.Resolved.Ok).relativePath)
@@ -227,7 +230,9 @@ class VDisplayScreenshotPathTest {
         val r = VDisplayScreenshotPath.canonicalContainment(
             "vdisplay/link.png",
             canonicalize = { rel ->
-                if (rel == "vdisplay/link.png") "/sdcard/evil.png" else "/data/data/app/files/minis/attachments/$rel"
+                if (rel == "vdisplay/link.png") "/sdcard/evil.png"
+                else if (rel == VDisplayScreenshotPath.ATTACHMENTS_ROOT) "/data/data/app/files/minis/attachments"
+                else "/data/data/app/files/minis/attachments/$rel"
             },
         )
         assertTrue(r is VDisplayScreenshotPath.Resolved.Rejected)
