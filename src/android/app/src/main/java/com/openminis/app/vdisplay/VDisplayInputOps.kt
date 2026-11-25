@@ -70,8 +70,11 @@ internal fun VDisplayShellServer.injectStrokeChecked(
         times[0] != 0L || times.last() > VDisplayShellServer.STROKE_MAX_MS ||
         (1 until n).any { times[it] < times[it - 1] }
     ) return false
-    val size = logicalSize(displayId) ?: return false
-    if (xs.any { it !in 0 until size.first } || ys.any { it !in 0 until size.second }) return false
+    // Named `bounds`, not `size`: inside the PointerCoords.apply block below
+    // `size` is the contact-size setter, and shadowing it made the assignment
+    // resolve to this Pair (compile errors at `size = 1f`).
+    val bounds = logicalSize(displayId) ?: return false
+    if (xs.any { it !in 0 until bounds.first } || ys.any { it !in 0 until bounds.second }) return false
     val down = SystemClock.uptimeMillis()
     fun event(i: Int, action: Int): MotionEvent {
         val props = MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_FINGER }
