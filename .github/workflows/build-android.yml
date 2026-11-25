@@ -31,7 +31,10 @@ jobs:
       - name: Set up Go 1.25
         uses: actions/setup-go@v5
         with:
-          go-version: '^1.25'
+          # Pinned to 1.26.x: '^1.25' floats to 1.27.x, where
+          # github.com/go-json-experiment/json (an rclone dependency) no longer
+          # compiles (undefined: json.SkipFunc) and the rclone .aar build fails.
+          go-version: '1.26.x'
 
       - name: Set up Android SDK & NDK
         run: |
