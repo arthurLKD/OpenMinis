@@ -99,11 +99,11 @@ object VDisplayFloatingOverlayController {
         get() = app?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
 
     /** Global overlay UI state (used inside `WindowManager` ComposeView). */
-    var uiState by mutableStateOf<VDisplayFloatingUiState?>(null)
+    internal var uiState by mutableStateOf<VDisplayFloatingUiState?>(null)
         private set
 
     /** In-app fallback UI state (used by `AppNavigation` only when `!hasOverlayPermission`). */
-    var inAppFallbackState by mutableStateOf<VDisplayFloatingUiState?>(null)
+    internal var inAppFallbackState by mutableStateOf<VDisplayFloatingUiState?>(null)
         private set
 
     var directTouch by mutableStateOf(false)

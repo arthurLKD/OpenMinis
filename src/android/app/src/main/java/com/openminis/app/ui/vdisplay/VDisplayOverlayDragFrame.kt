@@ -39,6 +39,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.unit.Velocity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -224,7 +225,7 @@ internal object VDisplayOverlayDragFrame {
                     lastAbs = abs
                 }
                 if (moved) {
-                    val v = runCatching { tracker.calculateVelocity() }.getOrDefault(Offset.Zero)
+                    val v = runCatching { tracker.calculateVelocity() }.getOrDefault(Velocity.Zero)
                     onDragFinished(v.x, v.y)
                 }
             }
@@ -265,7 +266,7 @@ internal object VDisplayOverlayDragFrame {
                     lastAbs = abs
                 }
                 if (moved) {
-                    val v = runCatching { tracker.calculateVelocity() }.getOrDefault(Offset.Zero)
+                    val v = runCatching { tracker.calculateVelocity() }.getOrDefault(Velocity.Zero)
                     onDragFinished(v.x, v.y)
                 } else {
                     onTap()
