@@ -662,6 +662,25 @@ object VirtualDisplayManager {
         withContext(Dispatchers.IO) { if (isRunning) frameSink?.latestFramePng() else null }
     }
 
+    /**
+     * Return a [FrameBitmap] only when the display is running **and** a frame
+     * newer than [lastCapturedAtMs] is available.
+     *
+     * Returns `null` when:
+     *  - `!isRunning`  (display stopped or never started)
+     *  - `frameSink == null`  (should not normally occur while running)
+     *  - [FrameSink.latestFrameIfNewer] itself returns null (no new frame)
+     *
+     * This is the low-overhead path for the floating overlay refresh loop:
+     * callers keep track of [FrameBitmap.capturedAtMs] and pass it back on
+     * the next call; the internal copy happens only when the display has
+     * actually redrawn.
+     */
+    fun latestFrameIfNewer(lastCapturedAtMs: Long): FrameBitmap? {
+        if (!isRunning) return null
+        return frameSink?.latestFrameIfNewer(lastCapturedAtMs)
+    }
+
     // ------------------------------------------------------------------
     // Targeted input (never takes a display id: only OUR display is reachable)
     // ------------------------------------------------------------------

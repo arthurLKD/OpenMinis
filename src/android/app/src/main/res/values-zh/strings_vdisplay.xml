@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vdisplay_floating_section_header">悬浮实时预览窗</string>
+    <string name="vdisplay_floating_section_footer">后台屏运行时在主界面及其他应用上层实时展示画面。放大、缩小或关闭浮窗仅隐藏预览，绝不会停止后台屏或中断其中运行的应用。</string>
+    <string name="vdisplay_floating_toggle">显示悬浮预览窗</string>
+    <string name="vdisplay_floating_toggle_subtitle">后台屏启动后自动弹出小窗，可在设置中随时关闭</string>
+    <string name="vdisplay_floating_direct_touch_toggle">放大后默认开启触控</string>
+    <string name="vdisplay_floating_direct_touch_subtitle">开启后可在放大的浮窗内直接点滑操作后台屏（也可在浮窗顶栏一键切换）</string>
+    <string name="vdisplay_floating_perm_title">开启跨应用全局悬浮窗</string>
+    <string name="vdisplay_floating_perm_subtitle">点击前往授予「显示在其他应用上层」权限，切出 Minis 后依然可见</string>
+    <string name="vdisplay_floating_reopen">重新显示悬浮窗</string>
+    <string name="vdisplay_floating_title">后台屏</string>
+    <string name="vdisplay_floating_mode_watch">观影</string>
+    <string name="vdisplay_floating_mode_touch">触控</string>
+    <string name="vdisplay_floating_waiting">等待画面…</string>
+    <string name="vdisplay_floating_preview_cd">后台屏实时浮窗画面</string>
+    <string name="vdisplay_floating_close_cd">关闭浮窗（不影响后台屏）</string>
+    <string name="vdisplay_floating_collapse_cd">缩回小窗</string>
+    <string name="vdisplay_floating_back_cd">后台屏返回键</string>
+    <string name="vdisplay_floating_zoom_in_cd">放大浮窗</string>
+    <string name="vdisplay_floating_zoom_out_cd">缩小浮窗</string>
+    <string name="vdisplay_floating_zoom_reset_cd">重置浮窗大小</string>
+    <string name="vdisplay_floating_zoom_value">%1$d%%</string>
+    <string name="vdisplay_floating_grant_global">去授权跨应用浮窗</string>
+</resources>

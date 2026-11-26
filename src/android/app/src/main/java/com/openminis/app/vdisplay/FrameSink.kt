@@ -78,6 +78,28 @@ internal class FrameSink(width: Int, height: Int) {
         else bmp.copy(bmp.config ?: Bitmap.Config.ARGB_8888, false)
     }
 
+    /**
+     * Return a [FrameBitmap] only when a newer frame is available.
+     *
+     * Decision made atomically under [frameLock]:
+     *  - returns **null** immediately (no copy) when any of:
+     *    - no frame has arrived yet (!hasFrame)
+     *    - [fullFrame] is null
+     *    - this sink has been released
+     *    - the stored frame is not newer than [lastCapturedAtMs]
+     *  - otherwise atomically copies the bitmap and returns a [FrameBitmap].
+     *
+     * Callers (e.g. the floating overlay refresh loop) can pass the
+     * [FrameBitmap.capturedAtMs] from the previous call to suppress
+     * redundant copies when the display has not redrawn.
+     */
+    fun latestFrameIfNewer(lastCapturedAtMs: Long): FrameBitmap? = synchronized(frameLock) {
+        val bmp = fullFrame
+        if (!hasFrame || bmp == null || released || frameAtMs <= lastCapturedAtMs) return@synchronized null
+        val copy = bmp.copy(bmp.config ?: Bitmap.Config.ARGB_8888, false)
+        FrameBitmap(copy, copy.width, bmp.height, frameAtMs)
+    }
+
     /** PNG encoding of the latest frame; null when there is none. */
     fun latestFramePng(): ByteArray? {
         val copy = latestFrameBitmap() ?: return null
@@ -173,6 +195,25 @@ internal class FrameSink(width: Int, height: Int) {
  */
 internal class FrameSnapshot(
     val png: ByteArray,
+    val width: Int,
+    val height: Int,
+    val capturedAtMs: Long,
+)
+
+/**
+ * A live bitmap frame captured from the virtual display, together with its
+ * geometry and the [capturedAtMs] timestamp (from [SystemClock.elapsedRealtime]).
+ *
+ * The [bitmap] is a fresh copy owned exclusively by the caller; it must be
+ * recycled when no longer needed. Width/height are the actual pixel dimensions
+ * of [bitmap] (which may differ from the configured display resolution if the
+ * ImageReader stride is wider than the logical width).
+ *
+ * Visible in the `vdisplay` package. Used by the floating overlay renderer to
+ * skip redundant copies via [FrameSink.latestFrameIfNewer].
+ */
+data class FrameBitmap(
+    val bitmap: Bitmap,
     val width: Int,
     val height: Int,
     val capturedAtMs: Long,

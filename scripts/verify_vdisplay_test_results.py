@@ -11,6 +11,7 @@ def verify(directory: Path) -> int:
         "VDisplayHandlerContractTest", "VDisplayScreenshotPathTest",
         "VDisplayCliParseTest", "VDisplayUnicodeContractTest",
         "VDisplayAccessibilityRoutingContractTest",
+        "VDisplayFloatingOverlayMathTest", "VDisplayFloatingOverlayContractTest",
     }
     seen = set()
     total = 0

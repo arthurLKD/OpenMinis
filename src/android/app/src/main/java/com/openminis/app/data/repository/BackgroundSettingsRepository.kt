@@ -54,6 +54,76 @@ class BackgroundSettingsRepository(context: Context) {
     }
 
     /**
+     * [T-vdisplay-float] Whether the vdisplay floating overlay window is
+     * enabled. Defaults to `true` — once the user has the vdisplay feature
+     * the overlay is on by default; they can toggle it from Settings.
+     */
+    private val _vdisplayFloatingEnabled =
+        MutableStateFlow(prefs.getBoolean(KEY_VDISPLAY_FLOATING_ENABLED, true))
+    val vdisplayFloatingEnabled: StateFlow<Boolean> =
+        _vdisplayFloatingEnabled.asStateFlow()
+
+    fun setVDisplayFloatingEnabled(value: Boolean) {
+        prefs.edit().putBoolean(KEY_VDISPLAY_FLOATING_ENABLED, value).apply()
+        _vdisplayFloatingEnabled.value = value
+    }
+
+    /**
+     * [T-vdisplay-float] When true, touch events on the floating vdisplay
+     * overlay are forwarded directly to the virtual display (direct-touch
+     * mode). When false (default), the overlay is transparent to touch —
+     * taps pass through to the underlying foreground app.
+     */
+    private val _vdisplayFloatingDirectTouch =
+        MutableStateFlow(prefs.getBoolean(KEY_VDISPLAY_FLOATING_DIRECT_TOUCH, false))
+    val vdisplayFloatingDirectTouch: StateFlow<Boolean> =
+        _vdisplayFloatingDirectTouch.asStateFlow()
+
+    fun setVDisplayFloatingDirectTouch(value: Boolean) {
+        prefs.edit().putBoolean(KEY_VDISPLAY_FLOATING_DIRECT_TOUCH, value).apply()
+        _vdisplayFloatingDirectTouch.value = value
+    }
+
+    /**
+     * [T-vdisplay-float] Scale factor of the floating vdisplay overlay window.
+     * Stored as a raw Float; callers should clamp to
+     * [VDisplayFloatingMath.MIN_SCALE]..[VDisplayFloatingMath.MAX_SCALE].
+     * Default 1.0f (100 %).
+     */
+    fun getVDisplayFloatingScale(): Float =
+        prefs.getFloat(KEY_VDISPLAY_FLOATING_SCALE, 1.0f)
+
+    fun setVDisplayFloatingScale(scale: Float) {
+        prefs.edit().putFloat(KEY_VDISPLAY_FLOATING_SCALE, scale).apply()
+    }
+
+    /**
+     * [T-vdisplay-float] Last persisted position of the floating vdisplay
+     * overlay, split by orientation (same negative-coordinate-safe approach
+     * as [getOverlayPosition]).
+     *
+     * Returns null when no position has ever been stored; the overlay
+     * controller then picks a default corner.
+     */
+    fun getVDisplayFloatingPosition(landscape: Boolean = false): Pair<Int, Int>? {
+        val (kx, ky) = vdisplayFloatingKeys(landscape)
+        if (!prefs.contains(kx) || !prefs.contains(ky)) return null
+        return prefs.getInt(kx, 0) to prefs.getInt(ky, 0)
+    }
+
+    fun setVDisplayFloatingPosition(x: Int, y: Int, landscape: Boolean = false) {
+        val (kx, ky) = vdisplayFloatingKeys(landscape)
+        prefs.edit().putInt(kx, x).putInt(ky, y).apply()
+    }
+
+    private fun vdisplayFloatingKeys(landscape: Boolean): Pair<String, String> =
+        if (landscape) {
+            KEY_VDISPLAY_FLOATING_LAND_X to KEY_VDISPLAY_FLOATING_LAND_Y
+        } else {
+            KEY_VDISPLAY_FLOATING_X to KEY_VDISPLAY_FLOATING_Y
+        }
+
+    /**
      * [T-android-dynamic-island] "Show live status on the dynamic island"
      * toggle (Android 16 Live Updates). Defaults to OFF — the capability only
      * exists on Android 16+ with the per-app grant, and when ON it REPLACES the
@@ -106,6 +176,10 @@ class BackgroundSettingsRepository(context: Context) {
             KEY_BG_OVERLAY_ENABLED -> _backgroundOverlayEnabled.value = p.getBoolean(key, false)
             KEY_DYNAMIC_ISLAND_ENABLED -> _dynamicIslandEnabled.value = p.getBoolean(key, false)
             KEY_SCHEDULED_COUNTDOWN_LEAD -> _scheduledCountdownLead.value = readScheduledCountdownLead(p)
+            KEY_VDISPLAY_FLOATING_ENABLED ->
+                _vdisplayFloatingEnabled.value = p.getBoolean(key, true)
+            KEY_VDISPLAY_FLOATING_DIRECT_TOUCH ->
+                _vdisplayFloatingDirectTouch.value = p.getBoolean(key, false)
         }
     }
 
@@ -156,6 +230,15 @@ class BackgroundSettingsRepository(context: Context) {
         internal const val KEY_DYNAMIC_ISLAND_ENABLED = "dynamicIslandEnabled"
 
         internal const val KEY_SCHEDULED_COUNTDOWN_LEAD = "scheduledCountdownLead"
+
+        // vdisplay floating overlay
+        internal const val KEY_VDISPLAY_FLOATING_ENABLED = "vdisplayFloatingEnabled"
+        internal const val KEY_VDISPLAY_FLOATING_DIRECT_TOUCH = "vdisplayFloatingDirectTouch"
+        internal const val KEY_VDISPLAY_FLOATING_SCALE = "vdisplayFloatingScale"
+        private const val KEY_VDISPLAY_FLOATING_X = "vdisplayFloatingX"
+        private const val KEY_VDISPLAY_FLOATING_Y = "vdisplayFloatingY"
+        private const val KEY_VDISPLAY_FLOATING_LAND_X = "vdisplayFloatingLandscapeX"
+        private const val KEY_VDISPLAY_FLOATING_LAND_Y = "vdisplayFloatingLandscapeY"
 
         /** minis-config values, in stored-index order. */
         internal val SCHEDULED_COUNTDOWN_CASES = listOf("off", "1m", "5m", "15m", "always")

@@ -84,4 +84,27 @@
     <string name="perm_section_vdisplay">Background screen</string>
     <string name="perm_vdisplay_cli_description">Background-screen CLI: create, screenshot, tap/swipe/key, launch apps and type text. It only ever targets the virtual display Minis created and never falls back to the physical screen.</string>
     <string name="perm_vdisplay_section_footer">This switch is separate from Shizuku authorization. Even with Shizuku granted, the agent cannot use the background screen until it is allowed here. Revoking it, or losing the service, releases the display and the preview together.</string>
+
+    <string name="vdisplay_floating_section_header">Floating preview window</string>
+    <string name="vdisplay_floating_section_footer">Displays a live floating preview over Minis and other apps while the virtual display runs. Closing or resizing the floating window never stops the background screen.</string>
+    <string name="vdisplay_floating_toggle">Show floating preview</string>
+    <string name="vdisplay_floating_toggle_subtitle">Automatically open a floating window when the background screen starts</string>
+    <string name="vdisplay_floating_direct_touch_toggle">Direct touch when expanded</string>
+    <string name="vdisplay_floating_direct_touch_subtitle">Allow taps and swipes on the expanded preview (you can also switch on the floating bar)</string>
+    <string name="vdisplay_floating_perm_title">Enable cross-app floating window</string>
+    <string name="vdisplay_floating_perm_subtitle">Grant “Display over other apps” so the preview stays visible outside Minis</string>
+    <string name="vdisplay_floating_reopen">Re-open floating window</string>
+    <string name="vdisplay_floating_title">Background</string>
+    <string name="vdisplay_floating_mode_watch">Watch</string>
+    <string name="vdisplay_floating_mode_touch">Touch</string>
+    <string name="vdisplay_floating_waiting">Waiting for frame…</string>
+    <string name="vdisplay_floating_preview_cd">Background screen floating preview</string>
+    <string name="vdisplay_floating_close_cd">Close floating window</string>
+    <string name="vdisplay_floating_collapse_cd">Minimize floating window</string>
+    <string name="vdisplay_floating_back_cd">Back on background screen</string>
+    <string name="vdisplay_floating_zoom_in_cd">Zoom in</string>
+    <string name="vdisplay_floating_zoom_out_cd">Zoom out</string>
+    <string name="vdisplay_floating_zoom_reset_cd">Reset size</string>
+    <string name="vdisplay_floating_zoom_value">%1$d%%</string>
+    <string name="vdisplay_floating_grant_global">Allow over other apps</string>
 </resources>

@@ -15,5 +15,7 @@ which itself includes software adapted from scrcpy
 The adapted portions live in src/android/app/src/main/java/com/openminis/app/vdisplay/
 (shell-identity context, virtual-display creation flags and keep-awake,
 targeted input injection, shell-side clipboard backup/restore and Unicode paste,
-launch-on-display) and
+launch-on-display),
+src/android/app/src/main/java/com/openminis/app/ui/vdisplay/
+(floating overlay sizing/snap physics and window drag/lifecycle host), and
 src/android/app/src/main/aidl/com/openminis/app/vdisplay/.

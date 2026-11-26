@@ -15,9 +15,10 @@ import kotlinx.coroutines.flow.StateFlow
  * display-lifecycle bugs: the backend owns the display, the ViewModel owns the
  * *preview loop*, and the screen only renders state.
  *
- * Nothing here creates a SYSTEM_ALERT_WINDOW overlay and nothing mirrors or
- * drives the physical display. A virtual display is an off-screen surface, so
- * its preview never becomes a visible window.
+ * The screen page itself does NOT create a SYSTEM_ALERT_WINDOW overlay; the
+ * separate [VDisplayFloatingOverlayController] owns the optional floating
+ * preview window across Minis and other apps without disturbing display
+ * lifecycle or physical-screen focus.
  *
  * Focus is a different matter and must not be assumed away: an ImageReader as
  * the display surface only decides where pixels go, it does NOT decide focus

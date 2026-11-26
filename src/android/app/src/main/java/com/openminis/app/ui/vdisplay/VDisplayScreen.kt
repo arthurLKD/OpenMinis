@@ -1,5 +1,6 @@
 package com.openminis.app.ui.vdisplay
 
+import android.provider.Settings
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,6 +47,7 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -53,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.openminis.app.MinisApp
 import com.openminis.app.R
 import com.openminis.app.offload.ShizukuManager
 import com.openminis.app.ui.components.MinisButton
@@ -86,23 +90,50 @@ fun VDisplayScreen(
     val vm: VDisplayViewModel = viewModel(factory = VDisplayViewModel.factory(backend))
     val state by vm.state.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
+    val backgroundRepo = remember(context) {
+        (context.applicationContext as? MinisApp)?.backgroundSettingsRepository
+    }
+    val floatingEnabled by (backgroundRepo?.vdisplayFloatingEnabled
+        ?: remember { kotlinx.coroutines.flow.MutableStateFlow(false) }).collectAsState()
+    val floatingDirectTouch by (backgroundRepo?.vdisplayFloatingDirectTouch
+        ?: remember { kotlinx.coroutines.flow.MutableStateFlow(false) }).collectAsState()
+    var canDrawOverlays by remember {
+        mutableStateOf(
+            android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M ||
+                Settings.canDrawOverlays(context),
+        )
+    }
 
     // Lifecycle-aware preview: refresh only while the page is started. ON_STOP
     // cancels the loop and drops the last frame; it never touches the display.
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> {
+                Lifecycle.Event.ON_START -> {
+                    VDisplayFloatingOverlayController.setOnPreviewScreen(true)
                     vm.refreshFromCore()
                     if (vm.state.value.isRunning) vm.startPreview()
                 }
-                Lifecycle.Event.ON_STOP -> vm.stopPreview()
+                Lifecycle.Event.ON_RESUME -> {
+                    VDisplayFloatingOverlayController.setOnPreviewScreen(true)
+                    canDrawOverlays = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M ||
+                        Settings.canDrawOverlays(context)
+                    VDisplayFloatingOverlayController.refreshPermission()
+                    vm.refreshFromCore()
+                    if (vm.state.value.isRunning) vm.startPreview()
+                }
+                Lifecycle.Event.ON_STOP -> {
+                    VDisplayFloatingOverlayController.setOnPreviewScreen(false)
+                    vm.stopPreview()
+                }
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            VDisplayFloatingOverlayController.setOnPreviewScreen(false)
             vm.stopPreview()
         }
     }
@@ -138,6 +169,23 @@ fun VDisplayScreen(
             onStart = { vm.start() },
             onStop = { vm.stop() },
         )
+
+        if (backgroundRepo != null) {
+            FloatingOverlaySection(
+                floatingEnabled = floatingEnabled,
+                directTouch = floatingDirectTouch,
+                canDrawOverlays = canDrawOverlays,
+                isRunning = state.isRunning,
+                closedForCurrent = VDisplayFloatingOverlayController.isClosedForCurrentDisplay(),
+                onToggleFloating = { wanted ->
+                    backgroundRepo.setVDisplayFloatingEnabled(wanted)
+                    if (wanted) VDisplayFloatingOverlayController.requestShow()
+                },
+                onToggleDirectTouch = { backgroundRepo.setVDisplayFloatingDirectTouch(it) },
+                onOpenOverlayPermission = { openOverlayPermissionSettings(context) },
+                onReopen = { VDisplayFloatingOverlayController.requestShow() },
+            )
+        }
 
         GeometrySection(state = state, vm = vm)
 
@@ -248,6 +296,77 @@ private fun StatusSection(
                     Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.vdisplay_start))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FloatingOverlaySection(
+    floatingEnabled: Boolean,
+    directTouch: Boolean,
+    canDrawOverlays: Boolean,
+    isRunning: Boolean,
+    closedForCurrent: Boolean,
+    onToggleFloating: (Boolean) -> Unit,
+    onToggleDirectTouch: (Boolean) -> Unit,
+    onOpenOverlayPermission: () -> Unit,
+    onReopen: () -> Unit,
+) {
+    SettingsSection(
+        header = stringResource(R.string.vdisplay_floating_section_header),
+        footer = stringResource(R.string.vdisplay_floating_section_footer),
+    ) {
+        SettingsRow(
+            title = stringResource(R.string.vdisplay_floating_toggle),
+            subtitle = stringResource(R.string.vdisplay_floating_toggle_subtitle),
+            trailing = {
+                SettingsSwitch(
+                    checked = floatingEnabled,
+                    onCheckedChange = onToggleFloating,
+                )
+            },
+            showDivider = floatingEnabled || !canDrawOverlays,
+        )
+
+        if (floatingEnabled) {
+            SettingsRow(
+                title = stringResource(R.string.vdisplay_floating_direct_touch_toggle),
+                subtitle = stringResource(R.string.vdisplay_floating_direct_touch_subtitle),
+                trailing = {
+                    SettingsSwitch(
+                        checked = directTouch,
+                        onCheckedChange = onToggleDirectTouch,
+                    )
+                },
+                showDivider = !canDrawOverlays || (isRunning && closedForCurrent),
+            )
+        }
+
+        if (!canDrawOverlays) {
+            SettingsRow(
+                title = stringResource(R.string.vdisplay_floating_perm_title),
+                subtitle = stringResource(R.string.vdisplay_floating_perm_subtitle),
+                titleColor = MaterialTheme.colorScheme.tertiary,
+                onClick = onOpenOverlayPermission,
+                showDivider = isRunning && floatingEnabled && closedForCurrent,
+            )
+        }
+
+        if (isRunning && floatingEnabled && closedForCurrent) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                MinisOutlinedButton(
+                    onClick = onReopen,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Outlined.Layers, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.vdisplay_floating_reopen))
                 }
             }
         }
