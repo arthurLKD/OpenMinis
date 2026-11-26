@@ -85,6 +85,8 @@ object VirtualDisplayManager {
 
     private const val TAG = "VirtualDisplayManager"
     private const val DEFAULT_CONNECT_TIMEOUT_MS = 15_000L
+    /** Must match VDisplayUserService.SERVICE_VERSION. */
+    private const val EXPECTED_SERVICE_VERSION = 2
 
     /** Message used only to carry the Unconfirmed outcome through [Result.Failure]. */
     private const val UNCONFIRMED_MARKER = "__partial_delivery__"
@@ -316,10 +318,19 @@ object VirtualDisplayManager {
         ensureInitialized()
         service?.let {
             if (runCatching { it.asBinder().pingBinder() }.getOrDefault(false)) {
-                return VConnectResult.Ok
+                // The binder is alive, but the process behind it may be an
+                // older APK still bound under the same versionCode. Refuse
+                // stale services by explicit protocol revision.
+                if (runCatching { it.serviceVersion() }.getOrDefault(-1) == EXPECTED_SERVICE_VERSION) {
+                    return VConnectResult.Ok
+                }
+                AppLogger.warning(TAG, "stale UserService (serviceVersion mismatch); rebinding")
+                runCatching { Shizuku.unbindUserService(userServiceArgs, connection, true) }
+                cleanupLocalResources()
+            } else {
+                // Stale reference — fall through and rebind.
+                cleanupLocalResources()
             }
-            // Stale reference — fall through and rebind.
-            cleanupLocalResources()
         }
         if (!ShizukuManager.isReady()) {
             AppLogger.warning(TAG, "connect refused: Shizuku not ready (state=${ShizukuManager.snapshot.value.state})")
@@ -332,6 +343,14 @@ object VirtualDisplayManager {
             val failure = if (!ShizukuManager.isReady()) VFailure.ShizukuNotReady else VFailure.BindFailed
             _state.value = VDisplayState.Failed(failure, "UserService bind timed out")
             return VConnectResult.Denied(failure)
+        }
+        // Re-validate the version on the fresh binder: an old process can
+        // still be delivered by the platform on a same-versionCode rebind.
+        if (runCatching { bound.serviceVersion() }.getOrDefault(-1) != EXPECTED_SERVICE_VERSION) {
+            AppLogger.warning(TAG, "refusing stale UserService after bind (serviceVersion mismatch)")
+            cleanupLocalResources()
+            _state.value = VDisplayState.Failed(VFailure.BindFailed, "stale UserService (protocol revision)")
+            return VConnectResult.Denied(VFailure.BindFailed)
         }
         service = bound
         // Tie the privileged side's lifetime to this process.
@@ -658,7 +677,9 @@ object VirtualDisplayManager {
         return withContext(Dispatchers.IO) {
             runCatching { block(svc, id) }
                 .onFailure {
-                    AppLogger.warning(TAG, "service call failed: ${it.message}")
+                    // Exception class only: a binder error may embed the input
+                    // payload, which must never reach the log.
+                    AppLogger.warning(TAG, "service call failed: ${it.javaClass.simpleName}")
                     if (it is android.os.DeadObjectException) handleServiceDeath("dead object")
                 }
                 .getOrDefault(default)
@@ -760,6 +781,114 @@ object VirtualDisplayManager {
             when (val enter = keyInternal(KeyEvent.KEYCODE_ENTER)) {
                 is Result.Ok -> Result.Ok(sent.data.put("enter", true))
                 is Result.Failure -> enter
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Unicode text entry via the shell-side clipboard (interface v2)
+    // ------------------------------------------------------------------
+
+    /**
+     * Type an arbitrary Unicode string into the focused field of OUR display.
+     * Unlike [text] this is not limited to ASCII: the payload is written into
+     * the system clipboard by the shell-identity service (which Android 10+
+     * does not subject to the foreground-clipboard restriction) and pasted
+     * with a targeted Ctrl+V, then the user's previous clip is restored.
+     *
+     * The caller MUST verify with a screenshot: Ctrl+V delivery does not prove
+     * the target editor accepted the text (WebViews and some custom editors
+     * ignore clipboard shortcuts), and the response says so honestly.
+     */
+    fun paste(text: String, replaceAll: Boolean = true, pressEnter: Boolean = false): Result {
+        val payload = text
+        if (payload.isEmpty() || payload.length > VDisplayClipLimits.MAX_CLIP_CHARS) {
+            return Result.Failure(
+                Codes.INVALID_CONFIG,
+                "text must be 1..${VDisplayClipLimits.MAX_CLIP_CHARS} characters",
+                2,
+            )
+        }
+        return runBlocking {
+            withService(notRunning()) { svc, id ->
+                val b = svc.pasteText(id, payload, replaceAll)
+                val sent = b.getInt("sent", VDisplayText.NOT_SENT)
+                val restored = b.getBoolean("restored", false)
+                val data = JSONObject()
+                    .put("chars", payload.length)
+                    .put("sent", sent)
+                    .put("restored", restored)
+                    .put("replaceAll", replaceAll)
+                val base = when (sent) {
+                    VDisplayText.DISPATCHED -> Result.Ok(data.put("verify", "capture a screenshot to confirm the editor accepted the text"))
+                    VDisplayText.UNCONFIRMED -> Result.Failure(
+                        Codes.INPUT_FAILED,
+                        "paste delivery is unconfirmed on display $id; the text may have partially landed — capture a screenshot before retrying",
+                    )
+                    else -> Result.Failure(
+                        Codes.INPUT_FAILED,
+                        "text could not be pasted on display $id (clipboard or injection refused; nothing was typed)",
+                    )
+                }
+                // ENTER must target the SAME display the paste just landed on:
+                // resolving a fresh display id here could send it to a new
+                // display after a concurrent stop/start.
+                if (pressEnter && base is Result.Ok) {
+                    return@withService if (svc.injectKey(id, KeyEvent.KEYCODE_ENTER)) {
+                        Result.Ok(base.data.put("enter", true))
+                    } else {
+                        Result.Failure(
+                            Codes.INPUT_FAILED,
+                            "text pasted but ENTER was not delivered on display $id",
+                        )
+                    }
+                }
+                base
+            }
+        }
+    }
+
+    /** Write the system clipboard through the shell service. */
+    fun clipboardSet(text: String): Result = runBlocking {
+        withService(notRunning()) { svc, _ ->
+            when (svc.clipboardSet(text)) {
+                VDisplayClipResult.OK -> Result.Ok(JSONObject().put("chars", text.length))
+                VDisplayClipResult.UNREADABLE -> Result.Failure(
+                    Codes.INPUT_FAILED,
+                    "refused to overwrite an unreadable clipboard (it may contain user data)",
+                )
+                else -> Result.Failure(Codes.INPUT_FAILED, "clipboard write refused")
+            }
+        }
+    }
+
+    /** Read the system clipboard text, if any. */
+    fun clipboardGet(): Result = runBlocking {
+        withService(notRunning()) { svc, _ ->
+            val text = svc.clipboardGet()
+            Result.Ok(JSONObject().put("text", text ?: JSONObject.NULL).put("chars", text?.length ?: 0))
+        }
+    }
+
+    /** Restore the user's clip if we still own it. */
+    fun clipboardRestore(): Result = runBlocking {
+        withService(notRunning()) { svc, _ ->
+            val ok = svc.clipboardRestore()
+            if (ok) Result.Ok(JSONObject().put("restored", true))
+            else Result.Failure(Codes.INPUT_FAILED, "clipboard could not be restored; retry `clipboard restore`")
+        }
+    }
+
+    /** Ctrl+A / Ctrl+V on the running display. */
+    fun ctrlKey(keyCode: Int): Result = runBlocking {
+        withService(notRunning()) { svc, id ->
+            when (svc.injectCtrlKey(id, keyCode)) {
+                VDisplayText.DISPATCHED -> Result.Ok(JSONObject().put("keyCode", keyCode))
+                VDisplayText.UNCONFIRMED -> Result.Failure(
+                    Codes.INPUT_FAILED,
+                    "modifier delivery is unconfirmed on display $id",
+                )
+                else -> Result.Failure(Codes.INPUT_FAILED, "ctrl key $keyCode was refused on display $id")
             }
         }
     }

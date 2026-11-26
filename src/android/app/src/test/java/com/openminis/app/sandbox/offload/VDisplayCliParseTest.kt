@@ -332,5 +332,64 @@ class VDisplayCliParseTest {
         }
         // ...and the ASCII-only text contract is documented, not implied.
         assertTrue("help must state the ASCII text restriction", VDisplayCli.HELP.contains("printable ASCII"))
+        assertTrue("help must document the Unicode path", VDisplayCli.HELP.contains("ANY Unicode"))
+    }
+
+    // ── Unicode clipboard-backed typing ─────────────────────────────────
+
+    @Test
+    fun `type accepts Chinese emoji and newlines without ASCII validation`() {
+        assertEquals(
+            VDisplayCli.Command.Type("你好，主人", true, false),
+            ok("type 你好，主人"),
+        )
+        assertEquals(
+            VDisplayCli.Command.Type("line1\nline2 😀", true, true),
+            (VDisplayCli.parse(listOf("type", "line1\nline2 😀", "--enter")) as VDisplayCli.ParseResult.Success).command,
+        )
+        // `paste` is an alias and --append suppresses Ctrl+A.
+        assertEquals(
+            VDisplayCli.Command.Type("追加内容", false, false),
+            ok("paste 追加内容 --append"),
+        )
+    }
+
+    @Test
+    fun `type rejects blank NUL oversized and unknown options`() {
+        assertEquals("INVALID_ARGS", failure("type").code)
+        assertEquals("INVALID_ARGS", failure("type    ").code)
+        assertEquals(
+            "INVALID_ARGS",
+            (VDisplayCli.parse(listOf("type", "   ")) as VDisplayCli.ParseResult.Failure).code,
+        )
+        assertEquals("INVALID_ARGS", failure("status --enter").code)
+        assertEquals("INVALID_ARGS", failure("type a b --bogus").code)
+        assertEquals("INVALID_ARGS", failure("type has\u0000nul").code)
+        val tooLong = "a".repeat(VDisplayCli.MAX_UNICODE_CHARS + 1)
+        assertEquals("INVALID_ARGS", failure("type $tooLong").code)
+    }
+
+    @Test
+    fun `clipboard get set restore parse and validate`() {
+        assertEquals(VDisplayCli.Command.Clipboard("get", null), ok("clipboard"))
+        assertEquals(VDisplayCli.Command.Clipboard("get", null), ok("clip get"))
+        assertEquals(VDisplayCli.Command.Clipboard("set", "中文 密码-like text"), ok("clipboard set 中文 密码-like text"))
+        assertEquals(VDisplayCli.Command.Clipboard("restore", null), ok("clipboard restore"))
+        assertEquals("INVALID_ARGS", failure("clipboard unknown").code)
+        assertEquals("INVALID_ARGS", failure("clipboard set").code)
+        assertEquals("INVALID_ARGS", failure("clipboard get extra").code)
+        assertEquals("INVALID_ARGS", failure("clipboard set has\u0000nul").code)
+        assertEquals("INVALID_ARGS", failure("type hello --no-select").code)
+        assertEquals("INVALID_ARGS", failure("launch com.example.app --append").code)
+    }
+
+    @Test
+    fun `unicode payload retains argv whitespace and accepts dash after terminator`() {
+        val payload = "  中文\t第一行\n第二行 😀  "
+        val r = VDisplayCli.parse(listOf("type", payload)) as VDisplayCli.ParseResult.Success
+        assertEquals(VDisplayCli.Command.Type(payload, true, false), r.command)
+        val dashed = VDisplayCli.parse(listOf("type", "--", "--literal")) as VDisplayCli.ParseResult.Success
+        assertEquals(VDisplayCli.Command.Type("--literal", true, false), dashed.command)
+        assertEquals("INVALID_ARGS", failure("type 中文 --display 0").code)
     }
 }

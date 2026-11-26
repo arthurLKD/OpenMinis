@@ -32,7 +32,10 @@ Privileged display flags, display-specific input, independent focus and per-disp
 - UI: Settings → Background display (`minis://settings/vdisplay`). Leaving the page stops preview refresh, not the owned display. Preview defaults to 2 fps.
 - Agent CLI: `android-vdisplay`. Its separate `vdisplay` permission defaults to denied, independently of Shizuku authorization.
 - Default start requires Android 14/API 34+ independent-focus flags. Refused trusted creation fails closed; UI/CLI do not enable untrusted downgrade.
-- Direct text entry accepts printable ASCII only. CLI has a conservative 256-character bound; core currently permits up to 1000. Non-ASCII input is not implemented by this command; no automatic clipboard fallback is provided.
+- `android-vdisplay text` remains printable-ASCII-only (256 characters at the CLI). The new explicit `type` / `paste` command carries Unicode through the Shizuku service's clipboard and targeted Ctrl+V; it is not an automatic fallback. `--append` avoids Ctrl+A; `--enter` can submit the field, so omit it during verification.
+- `android-a11y-cli ui dump/find/info --display <id>` selects a display's accessibility windows on Android 11+. `input text ... --display <id>` uses the focused editable node and `ACTION_SET_TEXT`, which supports Unicode without touching the clipboard. Custom editors may not expose editable nodes.
+- Clipboard-based entry temporarily changes the **system-wide clipboard**, backs up and restores the original when still owned, and must not overwrite a newer user clip. Target apps, keyboard services or clipboard-history tools may observe the temporary payload. Do not use this route for passwords, tokens or payment fields. Prefer accessibility node input when available.
+- Successful injection is not proof the target editor accepted the text. Always inspect the target tree or screenshot before retrying, and never automatically retry partial/unconfirmed input.
 - HOME, RECENTS, power and volume are not background-screen controls and are rejected.
 - Screenshots resolve against the calling session's attachments mount. File creation uses `CREATE_NEW`; paths are canonical-containment checked. These checks are not a claim of resistance to a malicious process concurrently swapping parent symlinks.
 
@@ -54,7 +57,7 @@ android-vdisplay stop
 
 `.github/workflows/build-android.yml` builds `feature/vdisplay-support` with `:app:assembleRelease` and publishes separately named `MinisApp-VDisplay-preview-arm64-v8a.apk` / `vdisplay-preview-*` artifacts with application ID `com.openminis.app.preview.vdisplay` (app name: `Minis (VDisplay)`), allowing co-existence with both official Minis and the OpenUI preview build. Verify signing certificate compatibility before installation and back up important data.
 
-The workflow runs the focused tests and the release assembly as two steps with their own time limits (20 and 35 minutes inside a 60-minute job). Test reports are uploaded on every outcome, so a failure leaves XML/HTML behind.
+The workflow runs the focused tests and the release assembly as two steps with their own time limits (20 and 35 minutes inside a 60-minute job). Test reports are uploaded on every outcome, so a failure leaves XML/HTML behind. Before publishing, the workflow runs `apksigner verify`, checks the exact application ID, rejects debuggable APKs, checks arm64-v8a-only native code, and records SHA-256.
 
 ```sh
 git diff --check
@@ -64,6 +67,7 @@ cd src/android
 # `--tests` is a per-task option: it binds only to the task name immediately
 # before it, so never place another task name between the task and its filter.
 ./gradlew :app:testGithubReleaseUnitTest --tests '*VDisplay*' --stacktrace
+python3 ../../scripts/verify_vdisplay_test_results.py app/build/test-results/testGithubReleaseUnitTest
 ./gradlew :app:assembleRelease --stacktrace
 ```
 
@@ -80,6 +84,25 @@ Local sandbox doctor currently reports a missing JDK/SDK toolchain. Windows SSH 
 7. Leave the preview page while agent operations continue; no preview-loop or image-reader leak.
 8. Physical-screen on/off and focus isolation, reporting ROM-specific failures honestly.
 9. Existing OpenUI rendering remains functional.
+
+## Unicode and multi-display acceptance (current change)
+
+The new implementation is under review; CI and device acceptance must be recorded separately. The preceding 83-test build does not validate these new paths.
+
+```sh
+android-vdisplay start --width 1080 --height 2400 --dpi 440
+android-vdisplay status
+# Replace DISPLAY_ID with the actual owned id reported above.
+android-a11y-cli ui dump --display DISPLAY_ID --compact
+android-a11y-cli input text '中文输入测试' --display DISPLAY_ID
+# For a custom editor without an editable accessibility node:
+android-vdisplay type '中文输入测试 😀'
+android-vdisplay screenshot --output unicode-verification.png
+# Verify the text, physical-screen focus, and clipboard restoration before retrying.
+android-vdisplay stop
+```
+
+Use a disposable local text field, not a message composer, for initial tests. Verify replacement and append, multiline/emoji, nonexistent display rejection, wrong-display node rejection, failed/partial paste reporting, concurrent calls, and clipboard restoration without exposing clipboard contents. Accessibility operations remain under the separate existing accessibility permission; `--display` does not grant virtual-display creation privileges. The virtual-display implementation opens no network port and retains no text payload files. Re-enable the updated app's accessibility service if Android retains a stale binding after an update; Shizuku must also bind the updated UserService.
 
 ## Reference licensing
 

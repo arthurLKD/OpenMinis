@@ -46,7 +46,7 @@ class VDisplayOffloadHandler(private val context: Context) : NativeOffloadHandle
         // Built first so even a parse failure honours --compact / -q.
         val args = OffloadArgs(
             request.argv.drop(1),
-            booleanFlags = setOf("help", "h", "enter"),
+            booleanFlags = setOf("help", "h", "enter", "append"),
         )
         val parsed = VDisplayCli.parse(request.argv.drop(1))
         when (parsed) {
@@ -127,6 +127,18 @@ class VDisplayOffloadHandler(private val context: Context) : NativeOffloadHandle
             args,
             VirtualDisplayManager.text(command.text, command.pressEnter),
         )
+        is VDisplayCli.Command.Type -> {
+            // ENTER is sent by the manager inside the SAME service call (and
+            // the same display id) as the paste, so a concurrent stop/start
+            // cannot redirect it to a different display.
+            result(args, VirtualDisplayManager.paste(command.text, command.replaceAll, command.pressEnter))
+        }
+        is VDisplayCli.Command.Clipboard -> when (command.action) {
+            "get" -> result(args, VirtualDisplayManager.clipboardGet())
+            "set" -> result(args, VirtualDisplayManager.clipboardSet(command.text ?: ""))
+            "restore" -> result(args, VirtualDisplayManager.clipboardRestore())
+            else -> err(args, "INVALID_ARGS", "unknown clipboard action", 2)
+        }
         is VDisplayCli.Command.Launch -> result(args, VirtualDisplayManager.launch(command.packageName))
     }
 
@@ -340,7 +352,9 @@ class VDisplayOffloadHandler(private val context: Context) : NativeOffloadHandle
         is VDisplayCli.Command.Tap -> "vdisplay: tap (${command.x}, ${command.y})"
         is VDisplayCli.Command.Swipe -> "vdisplay: swipe"
         is VDisplayCli.Command.Key -> "vdisplay: key ${command.name}"
-        is VDisplayCli.Command.Text -> "vdisplay: typing text"
+        is VDisplayCli.Command.Text -> "vdisplay: typing ASCII text"
+        is VDisplayCli.Command.Type -> "vdisplay: pasting Unicode text"
+        is VDisplayCli.Command.Clipboard -> "vdisplay: clipboard ${command.action}"
         is VDisplayCli.Command.Launch -> "vdisplay: launching ${command.packageName}"
     }
 

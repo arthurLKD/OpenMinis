@@ -121,6 +121,26 @@ class VDisplayUserService : IVirtualDisplayService.Stub {
             }
     }
 
+    // ------------------------------------------------------------------
+    // Unicode clipboard / Ctrl+paste (interface v2). These execute in the
+    // privileged (shell) process, which is exactly why they can write the
+    // clipboard while Minis is in the background.
+    // ------------------------------------------------------------------
+
+    override fun clipboardSet(text: String): Int = server.clipboardSet(text)
+
+    override fun clipboardGet(): String? = server.clipboardGet()
+
+    override fun clipboardRestore(): Boolean = server.clipboardRestore()
+
+    override fun injectCtrlKey(displayId: Int, keyCode: Int): Int =
+        server.injectCtrlKeyChecked(displayId, keyCode)
+
+    override fun pasteText(displayId: Int, text: String, replaceAll: Boolean): Bundle =
+        server.pasteTextChecked(displayId, text, replaceAll)
+
+    override fun serviceVersion(): Int = SERVICE_VERSION
+
     override fun destroy() {
         runCatching { server.releaseAll() }
         exitProcess(0)
@@ -159,6 +179,8 @@ class VDisplayUserService : IVirtualDisplayService.Stub {
     private companion object {
         const val TAG = "OpenMinisVDisplay"
         const val DESTROY_RAW_TRANSACTION = 16777114
+        /** Wire revision; bump on any AIDL method-surface change. */
+        const val SERVICE_VERSION = 2
 
         /** UserService processes may lack a main looper; prepare one if needed. */
         fun ensureMainLooper() {

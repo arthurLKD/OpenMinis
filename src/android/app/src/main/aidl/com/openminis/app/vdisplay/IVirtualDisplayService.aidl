@@ -130,6 +130,51 @@ interface IVirtualDisplayService {
      */
     void attachOwner(IBinder owner) = 13;
 
+    // ------------------------------------------------------------------
+    // Unicode text entry (added in v2 of this interface; the numbered methods
+    // above are wire-compatible, so an older client simply never calls these).
+    // ------------------------------------------------------------------
+
+    /**
+     * Write [text] into the SYSTEM clipboard from the shell identity. This is
+     * deliberately NOT exposed through `android-clipboard`: an app that is not
+     * in the foreground is refused clipboard writes since Android 10, whereas
+     * this process is the shell. [text] may contain any Unicode, up to 20000
+     * chars. Returns 0=set, 1=unavailable, 2=refused, 3=previous clip unreadable
+     * (nothing was overwritten).
+     */
+    int clipboardSet(String text) = 14;
+
+    /** Current clipboard text, or null when empty/unreadable/non-text. */
+    String clipboardGet() = 15;
+
+    /** Put the previous user clip back if we still own the current one. */
+    boolean clipboardRestore() = 16;
+
+    /**
+     * Inject Ctrl+A (keyCode 29) or Ctrl+V (keyCode 50) on our display, with
+     * the modifier released afterwards. No other key is accepted, and the
+     * display must be one this service created.
+     * Returns 0=refused, 1=dispatched, 2=unconfirmed.
+     */
+    int injectCtrlKey(int displayId, int keyCode) = 17;
+
+    /**
+     * One-shot Unicode text entry: shell-side clipboard write, optional
+     * Ctrl+A, Ctrl+V, short settle, then restore the user's clip. Result keys:
+     * "sent" (0/1/2), "restored" (boolean), "clip" (optional failure code).
+     * The caller must capture the display afterwards to verify the field.
+     */
+    Bundle pasteText(int displayId, String text, boolean replaceAll) = 18;
+
+    /**
+     * Stable wire-protocol revision of this interface. The Shizuku binder
+     * is reused across Minis upgrades, so a client must never talk to a
+     * stale UserService built from an older AIDL. Bump this when the method
+     * surface changes; clients refuse a service whose revision differs.
+     */
+    int serviceVersion() = 19;
+
     /** Release everything and exit the UserService process. */
     void destroy() = 16777114;
 }

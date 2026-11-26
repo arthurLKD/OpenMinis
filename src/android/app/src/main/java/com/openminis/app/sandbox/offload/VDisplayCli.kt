@@ -48,6 +48,9 @@ internal object VDisplayCli {
     const val MAX_SWIPE_MS = 10_000L
     const val DEFAULT_SWIPE_MS = 300L
 
+    /** Clipboard-carried Unicode payload bound (matches VDisplayClipLimits). */
+    const val MAX_UNICODE_CHARS = 20_000
+
     const val MAX_TEXT_CHARS = 256
     const val MAX_PACKAGE_CHARS = 255
 
@@ -115,6 +118,15 @@ internal object VDisplayCli {
 
         data class Text(val text: String, val pressEnter: Boolean) : Command()
 
+        /**
+         * Unicode text entry via shell-side clipboard + targeted Ctrl+V.
+         * [replaceAll] selects existing field content first; [pressEnter]
+         * sends ENTER afterwards (never a newline in the payload).
+         */
+        data class Type(val text: String, val replaceAll: Boolean, val pressEnter: Boolean) : Command()
+
+        data class Clipboard(val action: String, val text: String?) : Command()
+
         data class Launch(val packageName: String) : Command()
     }
 
@@ -122,7 +134,7 @@ internal object VDisplayCli {
     private val VALUE_OPTIONS = setOf("width", "height", "dpi", "output", "duration")
 
     /** Options that are flags. [OffloadOutput] consumes compact/quiet later. */
-    private val FLAG_OPTIONS = setOf("help", "h", "enter", "compact", "quiet", "q")
+    private val FLAG_OPTIONS = setOf("help", "h", "enter", "compact", "quiet", "q", "append")
 
     // ── Parser ───────────────────────────────────────────────────────────
 
@@ -193,6 +205,12 @@ internal object VDisplayCli {
 
         val sub = positionals[0].lowercase()
         val rest = positionals.drop(1)
+        if (flags.contains("append") && sub !in setOf("type", "paste")) {
+            return fail("INVALID_ARGS", "--append is only valid for type/paste")
+        }
+        if (flags.contains("enter") && sub !in setOf("text", "type", "paste")) {
+            return fail("INVALID_ARGS", "--enter is only valid for text/type/paste")
+        }
 
         fun onlyAllowed(vararg allowed: String): String? {
             val unexpected = values.keys - allowed.toSet()
@@ -274,6 +292,38 @@ internal object VDisplayCli {
                 val text = rest.joinToString(" ")
                 validateText(text)?.let { return fail("INVALID_ARGS", it) }
                 ParseResult.Success(Command.Text(text, flags.contains("enter")))
+            }
+            "type", "paste" -> {
+                onlyAllowed()?.let { return fail("INVALID_ARGS", it) }
+                if (rest.isEmpty()) return fail("INVALID_ARGS", "usage: $TOOL type <unicode text> [--append] [--enter]")
+                // Unlike `text` (ASCII key events), this accepts any Unicode:
+                // the payload is carried by the clipboard, not KeyCharacterMap.
+                val text = rest.joinToString(" ")
+                if (text.isBlank()) return fail("INVALID_ARGS", "text must not be blank")
+                if (text.length > MAX_UNICODE_CHARS) {
+                    return fail("INVALID_ARGS", "text exceeds $MAX_UNICODE_CHARS characters")
+                }
+                if (text.any { it.code == 0 }) {
+                    return fail("INVALID_ARGS", "text must not contain NUL characters")
+                }
+                ParseResult.Success(Command.Type(text, !flags.contains("append"), flags.contains("enter")))
+            }
+            "clipboard", "clip" -> {
+                onlyAllowed()?.let { return fail("INVALID_ARGS", it) }
+                val action = rest.firstOrNull()?.lowercase() ?: "get"
+                when (action) {
+                    "get" -> if (rest.size > 1) return fail("INVALID_ARGS", "usage: $TOOL clipboard get")
+                    "set" -> {
+                        if (rest.size < 2) return fail("INVALID_ARGS", "usage: $TOOL clipboard set <text>")
+                        val text = rest.drop(1).joinToString(" ")
+                        if (text.isBlank() || text.any { it.code == 0 }) return fail("INVALID_ARGS", "clipboard text must not be blank or contain NUL")
+                        if (text.length > MAX_UNICODE_CHARS) return fail("INVALID_ARGS", "text exceeds $MAX_UNICODE_CHARS characters")
+                        return ParseResult.Success(Command.Clipboard("set", text))
+                    }
+                    "restore" -> if (rest.size != 1) return fail("INVALID_ARGS", "usage: $TOOL clipboard restore")
+                    else -> return fail("INVALID_ARGS", "unknown clipboard action '$action' (get|set|restore)")
+                }
+                ParseResult.Success(Command.Clipboard(action, null))
             }
             "launch" -> {
                 onlyAllowed()?.let { return fail("INVALID_ARGS", it) }
@@ -393,6 +443,8 @@ Usage:
   $TOOL swipe <x1> <y1> <x2> <y2> [--duration MS]
   $TOOL key <KEY>
   $TOOL text <text> [--enter]
+  $TOOL type <unicode text> [--append] [--enter]
+  $TOOL clipboard get|set <text>|restore
   $TOOL launch <packageName>
 
 Commands:
@@ -416,6 +468,18 @@ Commands:
               $MAX_TEXT_CHARS characters, printable ASCII (U+0020..U+007E)
               only — Chinese/emoji are rejected; --enter presses ENTER
               afterwards).
+  type        Type ANY Unicode text (中文, emoji, mixed) into the focused
+              field: the Shizuku shell service writes the system clipboard
+              (allowed even while Minis is in the background), sends a
+              targeted Ctrl+V on our display, then restores the user's
+              previous clip. `paste` is an alias. --append keeps the current
+              field content instead of Ctrl+A replacing it. ALWAYS capture a
+              screenshot afterwards: delivery of the shortcut does not prove
+              a custom/WebView editor accepted the text.
+  clipboard   `get` reads the current clip text, `set <text>` writes it via
+              the shell service (NOT `android-clipboard`, which is blocked
+              for a background app), `restore` puts the user's previous clip
+              back. Never run `clipboard set` with secrets unless required.
   launch      Start <packageName> on the virtual display. Refused (not
               silently moved) when the user is already using that app on the
               physical screen.

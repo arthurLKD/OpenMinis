@@ -70,6 +70,12 @@ internal class VDisplayShellServer(
     /** Serializes launches so two concurrent callers cannot race on the same package. */
     internal val launchLock = Any()
 
+    /** Lazily created shell-identity clipboard; guarded by [clipboardLock]. */
+    @Volatile internal var clipboardDelegate: VDisplayClipboard? = null
+    /** Paste-serialization lock (guards the whole write→inject→restore span). */
+    @Volatile internal var pasteLockDelegate: Any? = null
+    internal val clipboardLock = Any()
+
     // ------------------------------------------------------------------
     // Display creation
     // ------------------------------------------------------------------
@@ -149,6 +155,13 @@ internal class VDisplayShellServer(
 
     fun releaseAll() {
         awake.stopAll()
+        // Never leave the agent's payload in the user's clipboard after the
+        // display goes away; restore() is a no-op when nothing is held or the
+        // user has since copied something else. Serialized against a
+        // concurrent paste so we do not restore while a paste holds the clip.
+        synchronized(pasteLock) {
+            runCatching { clipboardDelegate?.restore() }
+        }
         val all = synchronized(displays) {
             displays.values.toList().also { displays.clear(); trustedDisplays.clear() }
         }

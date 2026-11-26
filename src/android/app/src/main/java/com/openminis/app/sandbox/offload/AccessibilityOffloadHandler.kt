@@ -82,6 +82,15 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         private const val SERVICE_HELP = "service status | ping\n"
         private const val UI_HELP = """ui dump | find | info | node | screenshot
 
+  --display <int>              Restrict the command to that display id
+                               (Android 11+ / API 30+ only). Get it from
+                               `android-vdisplay status`; display 0 is the
+                               physical screen. Fail-closed: a malformed,
+                               missing or negative value is rejected, and on
+                               Android 10 or older the request is refused
+                               rather than answered from the default display.
+                               Without --display the behaviour is unchanged
+                               (default display only).
   ui screenshot                Capture a system-wide screenshot via
                                AccessibilityService.takeScreenshot (API 30+).
     --scale <float>            Scale factor applied to the captured bitmap
@@ -96,8 +105,26 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
                                `host_path` (the Android-side path, for
                                debugging only — tools cannot read it).
 """
-        private const val TAP_HELP = "tap node <id> | tap xy <x> <y> | tap text <s> | tap id <res>\n"
-        private const val INPUT_HELP = "input text <s> [--node id] [--clear|--append] | input clear | input key BACK|HOME|RECENTS|NOTIFICATIONS\n"
+        private const val TAP_HELP = """tap node <id> | tap xy <x> <y> | tap text <s> | tap id <res> [--display <id>]
+
+  --display <int>            Scope the lookup and the gesture to that display
+                             (Android 11+). A node id plus --display must
+                             agree: a node that lives on another display is
+                             refused (NODE_DISPLAY_MISMATCH) instead of being
+                             acted on.
+"""
+        private const val INPUT_HELP = """input text <s> [--node id] [--display <id>] [--clear|--append] | input clear | input key BACK|HOME|RECENTS|NOTIFICATIONS
+
+  --display <int>            Restrict node lookup and gestures to that display
+                             (use `android-vdisplay status` to obtain the id;
+                             Android 11+ only). input text accepts full
+                             Unicode/中文 via ACTION_SET_TEXT on the target
+                             node — no clipboard and no IME injection needed.
+                             `input key` is device-scoped and is REFUSED
+                             with --display: use `android-vdisplay key <KEY>`.
+                             Without --display the behavior is unchanged
+                             (default display only).
+"""
         private const val SCROLL_HELP = "scroll node <id> [--direction up|down|left|right] [--times n] | scroll xy <x> <y> | scroll to-text <s>\n"
         private const val GESTURE_HELP = "gesture swipe <x1> <y1> <x2> <y2> | gesture pinch <cx> <cy> [--scale f] | gesture path \"x,y:x,y\"\n"
         private const val WAIT_HELP = "wait appear | disappear | stable | activity\n"
@@ -228,6 +255,11 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
             err(args, "SERVICE_NOT_RUNNING",
                 e.message ?: "Accessibility service is not running. Enable Minis under Settings → Accessibility.",
                 exit = 77)
+        } catch (e: ArgFailure) {
+            // [T-vdisplay-a11y-display] A rejected --display / node binding
+            // must not degrade into the default display; it is reported with
+            // its own code so the caller can tell "refused" from "not found".
+            err(args, e.code, e.message, exit = 2)
         } catch (e: Throwable) {
             AppLogger.warning(TAG, "uncaught: ${e.javaClass.simpleName} ${e.message}")
             err(args, "INTERNAL", "${e.javaClass.simpleName}: ${e.message ?: ""}")
@@ -300,7 +332,7 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val compact = args.hasFlag("compact")
         val visibleOnly = args.getBool("visible-only") ?: true
         val arr = JSONArray()
-        for (root in svc.rootNodes()) {
+        for (root in svc.rootNodes(resolveDisplay(args))) {
             walkNode(svc.nodeRegistry, root, 0, maxDepth, visibleOnly, compact, arr)
         }
         return ok(args, JSONObject().put("count", arr.length()).put("nodes", arr))
@@ -360,7 +392,7 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val limit = args.getInt("limit") ?: 50
         val depth = args.getInt("depth") ?: 30
         val matches = ArrayList<AccessibilityNodeInfo>()
-        for (root in svc.rootNodes()) {
+        for (root in svc.rootNodes(resolveDisplay(args))) {
             findMatching(root, args, depth, 0, matches, limit)
             if (matches.size >= limit) break
         }
@@ -404,8 +436,9 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
 
     private fun uiInfo(args: OffloadArgs): NativeOffloadResult {
         val svc = svcOrThrow()
-        val (pkg, cls) = svc.foregroundPackage()
-        val windows = svc.windowInfos()
+        val displayId = resolveDisplay(args)
+        val (pkg, cls) = if (displayId != null) svc.foregroundPackage(displayId) else svc.foregroundPackage()
+        val windows = svc.windowInfos(displayId)
         val winArr = JSONArray()
         for (w in windows) {
             winArr.put(JSONObject().apply { for ((k, v) in w) put(k, v ?: JSONObject.NULL) })
@@ -421,8 +454,8 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val svc = svcOrThrow()
         val nodeId = args.positional.getOrNull(2)
             ?: return NativeOffloadResult(2, "$TOOL ui node: missing <nodeId>\n")
-        val n = svc.nodeRegistry.get(nodeId)
-            ?: return err(args, "NODE_NOT_FOUND", "no live node with id=$nodeId; re-run `ui dump`")
+        val n = nodeForDisplay(svc, nodeId, resolveDisplay(args),
+            missingMessage = "no live node with id=$nodeId; re-run `ui dump`")
         val data = nodeToJson(svc.nodeRegistry, n, 0, compact = false)
         if (args.hasFlag("children")) {
             val ch = JSONArray()
@@ -447,7 +480,7 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         }
         val svc = svcOrThrow()
         val scale = (args.getDouble("scale") ?: 0.5).toFloat().coerceIn(0.05f, 1.0f)
-        val displayId = args.getInt("display") ?: Display.DEFAULT_DISPLAY
+        val displayId = resolveDisplay(args) ?: Display.DEFAULT_DISPLAY
         val inline = args.hasFlag("inline", "b")
 
         val shot = svc.captureScreenshot(displayId)
@@ -555,8 +588,9 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val svc = svcOrThrow()
         val nodeId = args.positional.getOrNull(2)
             ?: return NativeOffloadResult(2, "$TOOL tap node: missing <nodeId>\n")
-        val n = svc.nodeRegistry.get(nodeId)
-            ?: return err(args, "NODE_NOT_FOUND", "no live node with id=$nodeId")
+        // The node id alone says nothing about the screen; when the caller
+        // names a display, the node must be proven to live there.
+        val n = nodeForDisplay(svc, nodeId, resolveDisplay(args))
         val action = if (args.hasFlag("long")) AccessibilityNodeInfo.ACTION_LONG_CLICK
                      else AccessibilityNodeInfo.ACTION_CLICK
         if (!n.isClickable && !args.hasFlag("long")) {
@@ -583,13 +617,15 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
             moveTo(x.toFloat(), y.toFloat())
             lineTo(x.toFloat() + 0.1f, y.toFloat() + 0.1f)
         }
-        val gestureOk = svc.dispatchSimpleGesture(path, 0L, duration)
-        if (args.hasFlag("double")) {
+        val displayId = resolveDisplay(args)
+        val outcome = svc.dispatchSimpleGestureOutcome(path, 0L, duration, displayId = displayId)
+        if (args.hasFlag("double") && outcome.ok) {
             Thread.sleep(80)
-            svc.dispatchSimpleGesture(path, 0L, duration)
+            svc.dispatchSimpleGestureOutcome(path, 0L, duration, displayId = displayId)
         }
-        return if (gestureOk) ok(args, JSONObject().put("x", x).put("y", y).put("action", "tap"))
-        else err(args, "GESTURE_FAILED", "dispatchGesture returned cancelled / timed out")
+        return if (outcome.ok) ok(args, JSONObject().put("x", x).put("y", y).put("action", "tap"))
+        else err(args, outcome.errorCode ?: "GESTURE_FAILED",
+            outcome.errorMessage ?: "dispatchGesture returned cancelled / timed out")
     }
 
     private fun tapText(args: OffloadArgs): NativeOffloadResult {
@@ -599,7 +635,7 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val contains = args.hasFlag("contains")
         val index = args.getInt("index") ?: 0
         val matches = ArrayList<AccessibilityNodeInfo>()
-        for (root in svc.rootNodes()) findByTextOrDesc(root, text, contains, 30, 0, matches)
+        for (root in svc.rootNodes(resolveDisplay(args))) findByTextOrDesc(root, text, contains, 30, 0, matches)
         val n = matches.getOrNull(index)
             ?: return err(args, "NODE_NOT_FOUND",
                 "no node with text${if (contains) " containing " else "="}\"$text\" (matches: ${matches.size})")
@@ -631,7 +667,7 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val rid = args.positional.getOrNull(2)
             ?: return NativeOffloadResult(2, "$TOOL tap id: missing <resourceId>\n")
         val matches = ArrayList<AccessibilityNodeInfo>()
-        for (root in svc.rootNodes()) findByResourceId(root, rid, 30, 0, matches)
+        for (root in svc.rootNodes(resolveDisplay(args))) findByResourceId(root, rid, 30, 0, matches)
         val n = matches.firstOrNull()
             ?: return err(args, "NODE_NOT_FOUND", "no node with resource-id=$rid")
         return if (n.performAction(AccessibilityNodeInfo.ACTION_CLICK))
@@ -689,6 +725,16 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val svc = svcOrThrow()
         val keyName = args.positional.getOrNull(2)
             ?: return NativeOffloadResult(2, "$TOOL input key: missing <keycode>\n")
+        // [T-vdisplay-a11y-display] AccessibilityService.performGlobalAction
+        // is device-scoped: the framework has no display argument, so a
+        // "--display 7" request cannot be honoured and would silently press
+        // the key on the physical screen. Refuse it explicitly instead.
+        if (args.get("display") != null || args.hasFlag("display")) {
+            return err(args, "DISPLAY_UNSUPPORTED",
+                "global input keys are device-scoped and cannot be targeted at a display; " +
+                    "use `android-vdisplay key <KEY>` for the virtual display, or drop --display",
+                exit = 2)
+        }
         return when (keyName.uppercase()) {
             "BACK" -> { svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK); ok(args, JSONObject().put("key", "BACK")) }
             "HOME" -> { svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME); ok(args, JSONObject().put("key", "HOME")) }
@@ -700,8 +746,14 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
     }
 
     private fun resolveTargetEditable(svc: MinisAccessibilityService, args: OffloadArgs): AccessibilityNodeInfo? {
-        args.get("node")?.let { id -> return svc.nodeRegistry.get(id) }
-        for (root in svc.rootNodes()) {
+        val displayId = resolveDisplay(args)
+        val nodeId = args.get("node")
+        if (nodeId != null) {
+            // A node id plus a display id must agree: refuse to type into a
+            // node that lives on another screen.
+            return nodeForDisplay(svc, nodeId, displayId)
+        }
+        for (root in svc.rootNodes(displayId)) {
             val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             if (focused != null) return focused
         }
@@ -724,8 +776,7 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val svc = svcOrThrow()
         val nodeId = args.positional.getOrNull(2)
             ?: return NativeOffloadResult(2, "$TOOL scroll node: missing <nodeId>\n")
-        val n = svc.nodeRegistry.get(nodeId)
-            ?: return err(args, "NODE_NOT_FOUND", "no live node with id=$nodeId")
+        val n = nodeForDisplay(svc, nodeId, resolveDisplay(args))
         val direction = args.get("direction") ?: "down"
         val times = args.getInt("times") ?: 1
         val action = when (direction) {
@@ -755,9 +806,11 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
             else -> return err(args, "INVALID_ARGS", "--direction must be up|down|left|right")
         }
         val path = Path().apply { moveTo(x.toFloat(), y.toFloat()); lineTo((x + dx).toFloat(), (y + dy).toFloat()) }
-        return if (svc.dispatchSimpleGesture(path, 0L, duration))
+        val outcome = svc.dispatchSimpleGestureOutcome(path, 0L, duration, displayId = resolveDisplay(args))
+        return if (outcome.ok)
             ok(args, JSONObject().put("direction", direction).put("distance", distance))
-        else err(args, "GESTURE_FAILED", "scroll gesture cancelled")
+        else err(args, outcome.errorCode ?: "GESTURE_FAILED",
+            outcome.errorMessage ?: "scroll gesture cancelled")
     }
 
     private fun scrollToText(args: OffloadArgs): NativeOffloadResult {
@@ -766,8 +819,9 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
             ?: return NativeOffloadResult(2, "$TOOL scroll to-text: missing <text>\n")
         val maxScrolls = args.getInt("max-scrolls") ?: 10
         val direction = args.get("direction") ?: "down"
+        val displayId = resolveDisplay(args)
         val containerId = args.get("container")
-        val container: AccessibilityNodeInfo? = containerId?.let { svc.nodeRegistry.get(it) }
+        val container: AccessibilityNodeInfo? = containerId?.let { nodeForDisplay(svc, it, displayId) }
         val action = when (direction) {
             "down", "right" -> AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
             "up", "left"    -> AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
@@ -775,14 +829,14 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         }
         repeat(maxScrolls) {
             val matches = ArrayList<AccessibilityNodeInfo>()
-            for (root in svc.rootNodes()) findByTextOrDesc(root, text, contains = true, 30, 0, matches)
+            for (root in svc.rootNodes(displayId)) findByTextOrDesc(root, text, contains = true, 30, 0, matches)
             val hit = matches.firstOrNull()
             if (hit != null) return ok(args, JSONObject()
                 .put("found", true)
                 .put("node", nodeToJson(svc.nodeRegistry, hit, 0, compact = true)))
             val scrolled = container?.performAction(action) ?: run {
                 var any = false
-                for (root in svc.rootNodes()) {
+                for (root in svc.rootNodes(displayId)) {
                     val s = firstScrollable(root, 30, 0)
                     if (s != null) { any = s.performAction(action); break }
                 }
@@ -821,9 +875,11 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val y2 = args.positional.getOrNull(5)?.toIntOrNull() ?: return NativeOffloadResult(2, "$TOOL gesture swipe: missing <y2>\n")
         val duration = args.getLong("duration") ?: 300L
         val path = Path().apply { moveTo(x1.toFloat(), y1.toFloat()); lineTo(x2.toFloat(), y2.toFloat()) }
-        return if (svc.dispatchSimpleGesture(path, 0L, duration))
+        val outcome = svc.dispatchSimpleGestureOutcome(path, 0L, duration, displayId = resolveDisplay(args))
+        return if (outcome.ok)
             ok(args, JSONObject().put("from", JSONArray().put(x1).put(y1)).put("to", JSONArray().put(x2).put(y2)))
-        else err(args, "GESTURE_FAILED", "swipe cancelled")
+        else err(args, outcome.errorCode ?: "GESTURE_FAILED",
+            outcome.errorMessage ?: "swipe cancelled")
     }
 
     private fun gesturePinch(args: OffloadArgs): NativeOffloadResult {
@@ -832,9 +888,13 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val cy = args.positional.getOrNull(3)?.toFloatOrNull() ?: return NativeOffloadResult(2, "$TOOL gesture pinch: missing <cy>\n")
         val scale = args.getDouble("scale")?.toFloat() ?: 0.5f
         val duration = args.getLong("duration") ?: 300L
-        return if (svc.dispatchPinch(cx, cy, scale, duration))
+        // Pinch must be bound to the named display exactly like a swipe: it
+        // is two strokes, not a different mechanism.
+        val outcome = svc.dispatchPinchOutcome(cx, cy, scale, duration, displayId = resolveDisplay(args))
+        return if (outcome.ok)
             ok(args, JSONObject().put("center", JSONArray().put(cx).put(cy)).put("scale", scale))
-        else err(args, "GESTURE_FAILED", "pinch cancelled")
+        else err(args, outcome.errorCode ?: "GESTURE_FAILED",
+            outcome.errorMessage ?: "pinch cancelled")
     }
 
     private fun gesturePath(args: OffloadArgs): NativeOffloadResult {
@@ -851,9 +911,11 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
             for (i in 1 until pts.size) lineTo(pts[i].first, pts[i].second)
         }
         val duration = args.getLong("duration") ?: (pts.size * 100L)
-        return if (svc.dispatchSimpleGesture(path, 0L, duration))
+        val outcome = svc.dispatchSimpleGestureOutcome(path, 0L, duration, displayId = resolveDisplay(args))
+        return if (outcome.ok)
             ok(args, JSONObject().put("points", pts.size))
-        else err(args, "GESTURE_FAILED", "path cancelled")
+        else err(args, outcome.errorCode ?: "GESTURE_FAILED",
+            outcome.errorMessage ?: "path cancelled")
     }
 
     // ── wait ─────────────────────────────────────────────────────────────
@@ -878,7 +940,7 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val targetId = args.get("id")
         val targetClass = args.get("class")
         while (System.currentTimeMillis() < deadline) {
-            for (root in svc.rootNodes()) {
+            for (root in svc.rootNodes(resolveDisplay(args))) {
                 val matches = ArrayList<AccessibilityNodeInfo>()
                 if (targetText != null) findByTextOrDesc(root, targetText, contains = containsOnly, 30, 0, matches)
                 if (targetId != null) findByResourceId(root, targetId, 30, 0, matches)
@@ -908,11 +970,12 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val timeout = args.getLong("timeout") ?: 8000L
         val start = System.currentTimeMillis()
         val deadline = start + timeout
-        var lastSig = treeSignature(svc)
+        val displayId = resolveDisplay(args)
+        var lastSig = treeSignature(svc, displayId)
         var stableSince = System.currentTimeMillis()
         while (System.currentTimeMillis() < deadline) {
             Thread.sleep(interval)
-            val sig = treeSignature(svc)
+            val sig = treeSignature(svc, displayId)
             if (sig != lastSig) { lastSig = sig; stableSince = System.currentTimeMillis() }
             else if (System.currentTimeMillis() - stableSince >= stableDuration) {
                 return ok(args, JSONObject().put("stable", true).put("waitedMs", System.currentTimeMillis() - start))
@@ -921,14 +984,16 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         return ok(args, JSONObject().put("stable", false).put("timedOut", true))
     }
 
-    private fun treeSignature(svc: MinisAccessibilityService): Int {
+    private fun treeSignature(svc: MinisAccessibilityService, displayId: Int?): Int {
         var h = 0
-        for (root in svc.rootNodes()) {
+        for (root in svc.rootNodes(displayId)) {
             h = h * 31 + (root.text?.hashCode() ?: 0)
             h = h * 31 + root.childCount
             h = h * 31 + root.windowId
         }
-        val (pkg, cls) = svc.foregroundPackage()
+        // The foreground package must come from the SAME display the tree was
+        // read from — otherwise the signature mixes two screens.
+        val (pkg, cls) = if (displayId != null) svc.foregroundPackage(displayId) else svc.foregroundPackage()
         h = h * 31 + (pkg?.hashCode() ?: 0)
         h = h * 31 + (cls?.hashCode() ?: 0)
         return h
@@ -939,9 +1004,12 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val timeout = args.getLong("timeout") ?: 10_000L
         val pkg = args.get("package")
         val act = args.get("activity")
+        val displayId = resolveDisplay(args)
         val deadline = System.currentTimeMillis() + timeout
         while (System.currentTimeMillis() < deadline) {
-            val (p, c) = svc.foregroundPackage()
+            // The foreground app must be read from the requested display;
+            // the default-display answer would be a different app.
+            val (p, c) = if (displayId != null) svc.foregroundPackage(displayId) else svc.foregroundPackage()
             val pkgOk = pkg == null || p == pkg
             val actOk = act == null || c == act || (act.startsWith(".") && (c?.endsWith(act) == true))
             if (pkgOk && actOk) return ok(args, JSONObject().put("packageName", p ?: "").put("activityName", c ?: ""))
@@ -1027,7 +1095,7 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
     private fun dialogDetect(args: OffloadArgs): NativeOffloadResult {
         val svc = svcOrThrow()
         var dialog: AccessibilityNodeInfo? = null
-        for (root in svc.rootNodes()) {
+        for (root in svc.rootNodes(resolveDisplay(args))) {
             dialog = findFirstByClassNameContains(root, "Dialog", 30, 0)
             if (dialog != null) break
         }
@@ -1079,15 +1147,15 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         }
         for (label in candidates) {
             val matches = ArrayList<AccessibilityNodeInfo>()
-            for (root in svc.rootNodes()) findByTextOrDesc(root, label, contains = false, 30, 0, matches)
+            for (root in svc.rootNodes(resolveDisplay(args))) findByTextOrDesc(root, label, contains = false, 30, 0, matches)
             val btn = matches.firstOrNull { it.isClickable } ?: matches.firstOrNull()
             if (btn != null) {
                 val clicked = if (btn.isClickable) btn.performAction(AccessibilityNodeInfo.ACTION_CLICK) else {
                     val r = Rect(); btn.getBoundsInScreen(r)
-                    svc.dispatchSimpleGesture(
+                    svc.dispatchSimpleGestureOutcome(
                         Path().apply { moveTo(r.exactCenterX(), r.exactCenterY()); lineTo(r.exactCenterX() + 0.1f, r.exactCenterY() + 0.1f) },
-                        0L, 50L
-                    )
+                        0L, 50L, displayId = resolveDisplay(args)
+                    ).ok
                 }
                 if (clicked) return ok(args, JSONObject().put("dismissed", true).put("button", label))
             }
@@ -1112,7 +1180,9 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val svc = svcOrThrow()
         val nodeId = args.get("node")
         val sep = args.get("separator") ?: "\n"
-        val roots = if (nodeId != null) listOfNotNull(svc.nodeRegistry.get(nodeId)) else svc.rootNodes()
+        val displayId = resolveDisplay(args)
+        val roots = if (nodeId != null) listOf(nodeForDisplay(svc, nodeId, displayId))
+                    else svc.rootNodes(displayId)
         if (roots.isEmpty()) return err(args, "NODE_NOT_FOUND", "no roots / node=$nodeId")
         val arr = JSONArray()
         val sb = StringBuilder()
@@ -1141,9 +1211,10 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
         val nodeId = args.get("node")
         val maxItems = args.getInt("max-items") ?: 100
         val autoScroll = args.hasFlag("auto-scroll")
-        val container: AccessibilityNodeInfo = (nodeId?.let { svc.nodeRegistry.get(it) }) ?: run {
+        val displayId = resolveDisplay(args)
+        val container: AccessibilityNodeInfo = (nodeId?.let { nodeForDisplay(svc, it, displayId) }) ?: run {
             var found: AccessibilityNodeInfo? = null
-            for (root in svc.rootNodes()) { found = firstScrollable(root, 30, 0); if (found != null) break }
+            for (root in svc.rootNodes(displayId)) { found = firstScrollable(root, 30, 0); if (found != null) break }
             found ?: return err(args, "NODE_NOT_FOUND", "no scrollable container; pass --node")
         }
         val items = LinkedHashMap<String, JSONObject>()
@@ -1173,7 +1244,9 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
     private fun extractForm(args: OffloadArgs): NativeOffloadResult {
         val svc = svcOrThrow()
         val nodeId = args.get("node")
-        val roots = if (nodeId != null) listOfNotNull(svc.nodeRegistry.get(nodeId)) else svc.rootNodes()
+        val displayId = resolveDisplay(args)
+        val roots = if (nodeId != null) listOf(nodeForDisplay(svc, nodeId, displayId))
+                    else svc.rootNodes(displayId)
         val arr = JSONArray()
         for (root in roots) collectFormFields(root, 30, 0, arr, svc.nodeRegistry)
         return ok(args, JSONObject().put("count", arr.length()).put("data", arr))
@@ -1195,6 +1268,82 @@ First-run: enable "Minis" under Settings → Accessibility, then `service ping`.
     // ── helpers ──────────────────────────────────────────────────────────
 
     private class NotRunning(msg: String) : RuntimeException(msg)
+
+    /**
+     * A rejected argument. Carries the CLI error code so the failure can be
+     * surfaced through the standard `{ ok:false, error:{code,message} }`
+     * envelope instead of an exception string.
+     */
+    private class ArgFailure(val code: String, override val message: String) : RuntimeException(message)
+
+    /**
+     * The display id the command is scoped to, or null for the legacy
+     * default-display behaviour.
+     *
+     * [T-vdisplay-a11y-display] Fail-closed contract for `--display`:
+     *  - absent                      → null → unchanged legacy behaviour.
+     *  - present without a value     → INVALID_ARGS. A bare `--display` must
+     *                                  not degrade into "the main screen".
+     *  - not an integer              → INVALID_ARGS. Never "treat as default":
+     *                                  a caller that asked for display 7 must
+     *                                  not receive display 0's tree.
+     *  - negative                    → INVALID_ARGS (ids are unsigned).
+     *  - Android 10 or older         → NOT_SUPPORTED. There is no
+     *                                  per-display window API there, so
+     *                                  answering with the default display
+     *                                  would be a silent cross-screen mix-up.
+     */
+    private fun resolveDisplay(args: OffloadArgs): Int? {
+        val raw = args.get("display")
+        if (raw == null) {
+            if (args.hasFlag("display")) {
+                throw ArgFailure("INVALID_ARGS", "--display requires a display id (got no value)")
+            }
+            return null
+        }
+        val id = raw.trim().toIntOrNull()
+            ?: throw ArgFailure("INVALID_ARGS", "--display must be an integer display id (got '$raw')")
+        if (id < 0) {
+            throw ArgFailure("INVALID_ARGS", "--display must not be negative (got $id)")
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            throw ArgFailure("NOT_SUPPORTED",
+                "--display requires Android 11+ (API 30); this device is API ${Build.VERSION.SDK_INT}. " +
+                    "Refusing to fall back to the default display.")
+        }
+        return id
+    }
+
+    /**
+     * Resolves a node id and proves the node belongs to the requested
+     * display.
+     *
+     * [T-vdisplay-a11y-display] A node id is display-agnostic. When the
+     * caller scoped the command to a display, the node's owning display must
+     * be proven before the node is touched — otherwise a node from the
+     * physical screen could be clicked while the caller believes it acted on
+     * the virtual one.
+     *
+     * Ownership that cannot be proven counts as a mismatch (fail closed).
+     */
+    private fun nodeForDisplay(
+        svc: MinisAccessibilityService,
+        nodeId: String,
+        displayId: Int?,
+        missingCode: String = "NODE_NOT_FOUND",
+        missingMessage: String = "no live node with id=$nodeId",
+    ): AccessibilityNodeInfo {
+        val node = svc.nodeRegistry.get(nodeId)
+            ?: throw ArgFailure(missingCode, missingMessage)
+        if (displayId == null) return node
+        val owner = svc.nodeDisplayId(node)
+        if (owner != displayId) {
+            throw ArgFailure("NODE_DISPLAY_MISMATCH",
+                "node $nodeId belongs to display ${owner ?: "unknown"} but --display $displayId was requested; " +
+                    "re-read the tree with `ui dump --display $displayId`")
+        }
+        return node
+    }
 
     private fun svcOrThrow(): MinisAccessibilityService =
         MinisAccessibilityService.getInstance()
