@@ -378,7 +378,8 @@ class VDisplayFloatingOverlayMathTest {
     @Test
     fun `snapCorner velocity biases towards BottomEnd from top-right`() {
         val b = bounds()
-        val corner = VDisplayFloatingMath.snapCorner(900, 100, 0f, 5000f, 100, 200, b)
+        // midY = (96 + 2264) / 2 = 1180; cy = 200 + 8000 * 0.15 = 1400 >= midY
+        val corner = VDisplayFloatingMath.snapCorner(900, 100, 0f, 8000f, 100, 200, b)
         assertEquals(Corner.BottomEnd, corner)
     }
 
@@ -394,10 +395,9 @@ class VDisplayFloatingOverlayMathTest {
     @Test
     fun `snapCorner ignores Infinity velocity`() {
         val b = bounds()
-        // Inf velocity still picks a valid corner (velocity bias is capped by float arithmetic)
+        // Non-finite velocity falls back to zero bias (same as NaN) → stays at TopStart.
         val corner = VDisplayFloatingMath.snapCorner(50, 100, Float.POSITIVE_INFINITY, 0f, 100, 200, b)
-        // With +Inf bias the biased cx is +Inf, which is >= midX → End column
-        assertEquals(Corner.TopEnd, corner)
+        assertEquals(Corner.TopStart, corner)
     }
 
     // ── shouldShowFloatingWindow ───────────────────────────────────────────
