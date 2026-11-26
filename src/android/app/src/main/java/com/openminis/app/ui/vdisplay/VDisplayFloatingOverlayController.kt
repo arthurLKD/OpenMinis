@@ -392,7 +392,7 @@ object VDisplayFloatingOverlayController {
         try {
             wm.addView(host, params)
         } catch (t: Throwable) {
-            AppLogger.warning(TAG, "addView failed: ${t.javaClass.simpleName}")
+            AppLogger.warning(TAG, "addView failed: ${t.javaClass.simpleName}: ${t.message}")
             owners.destroy()
             this.hostView = null
             this.owners = null
@@ -402,6 +402,7 @@ object VDisplayFloatingOverlayController {
 
         attached = true
         lastCapturedAtMs = 0L
+        AppLogger.info(TAG, "global overlay attached at ($originX,$originY) displayId=${runningDisplayId()}")
         publishUiStates()
         ensureFrameLoop()
     }

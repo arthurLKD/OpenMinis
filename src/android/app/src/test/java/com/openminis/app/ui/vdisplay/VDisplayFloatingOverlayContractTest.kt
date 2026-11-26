@@ -114,8 +114,15 @@ class VDisplayFloatingOverlayContractTest {
     }
 
     @Test
-    fun `app initializes controller and preview screen suppresses duplicate overlay`() {
-        assertTrue(app.contains("VDisplayFloatingOverlayController.init(this)"))
+    fun `app initializes controller after backgroundSettingsRepository and suppresses duplicate overlay`() {
+        val repoInit = app.indexOf("backgroundSettingsRepository = BackgroundSettingsRepository(")
+        val controllerInit = app.indexOf("VDisplayFloatingOverlayController.init(this)")
+        assertTrue("missing backgroundSettingsRepository init", repoInit >= 0)
+        assertTrue("missing VDisplayFloatingOverlayController.init", controllerInit >= 0)
+        assertTrue(
+            "VDisplayFloatingOverlayController.init must run after backgroundSettingsRepository is initialized",
+            controllerInit > repoInit,
+        )
         assertTrue(screen.contains("VDisplayFloatingOverlayController.setOnPreviewScreen(true)"))
         assertTrue(screen.contains("VDisplayFloatingOverlayController.setOnPreviewScreen(false)"))
     }

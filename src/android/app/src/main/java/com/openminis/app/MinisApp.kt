@@ -816,11 +816,6 @@ class MinisApp : Application(), ImageLoaderFactory {
         runCatching { com.openminis.app.vdisplay.VirtualDisplayManager.init(this) }
             .onFailure { android.util.Log.w("MinisApp", "VirtualDisplayManager.init failed: ${it.message}") }
 
-        // [T-vdisplay-floating] Global cross-app floating preview window for
-        // the virtual display (TYPE_APPLICATION_OVERLAY + in-app fallback).
-        runCatching { com.openminis.app.ui.vdisplay.VDisplayFloatingOverlayController.init(this) }
-            .onFailure { android.util.Log.w("MinisApp", "VDisplayFloatingOverlayController.init failed: ${it.message}") }
-
         // T-android-minis-debug-cli: shell-side CLI wrapper around the in-app
         // DebugServer (127.0.0.1:5321) JSON-RPC. DEBUG-only — Release builds
         // ship neither the DebugServer nor this handler, so the
@@ -917,6 +912,11 @@ class MinisApp : Application(), ImageLoaderFactory {
         // posts a tap-to-open notification when the app is backgrounded.
         // Mirrors iOS BackgroundKeepAliveManager.postBackgroundTaskNotification.
         backgroundSettingsRepository = BackgroundSettingsRepository(this)
+        // [T-vdisplay-floating] Must run AFTER backgroundSettingsRepository is
+        // initialized — calling it earlier threw UninitializedPropertyAccessException
+        // and silently disabled the global floating preview.
+        runCatching { com.openminis.app.ui.vdisplay.VDisplayFloatingOverlayController.init(this) }
+            .onFailure { com.openminis.app.logging.AppLogger.warning("MinisApp", "VDisplayFloatingOverlayController.init failed: ${it.message}") }
         backgroundTaskNotifier = BackgroundTaskNotifier(
             context = this,
             chatRepository = chatRepository,
