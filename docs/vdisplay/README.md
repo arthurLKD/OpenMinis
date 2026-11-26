@@ -87,7 +87,18 @@ Local sandbox doctor currently reports a missing JDK/SDK toolchain. Windows SSH 
 
 ## Unicode and multi-display acceptance (current change)
 
-CI evidence (run 22, commit `d5f78af`): 103 focused VDisplay unit tests passed (7 suites, 0 failed/skipped), Release/R8 assembly succeeded, and the workflow verified the APK signature (`apksigner verify`, CN=OpenMinis Preview), package `com.openminis.app.preview.vdisplay`, non-debuggable, `arm64-v8a`-only native code, and recorded its SHA-256. Published as `vdisplay-preview-22`. Device-level acceptance (Chinese paste, multi-display routing, clipboard restore) is still pending and must be recorded separately.
+CI evidence (run 22, commit `d5f78af`): 103 focused VDisplay unit tests passed (7 suites, 0 failed/skipped), Release/R8 assembly succeeded, and the workflow verified the APK signature (`apksigner verify`, CN=OpenMinis Preview), package `com.openminis.app.preview.vdisplay`, non-debuggable, `arm64-v8a`-only native code, and recorded its SHA-256. Published as `vdisplay-preview-22`.
+
+Device acceptance (Xiaomi 15, Android 17/API 37, Shizuku READY, install of `vdisplay-preview-22`) — all verified with screenshots:
+
+- Multi-display routing: `ui info --display 115` returned only the Settings window on the virtual display; without `--display` only display 0 was reported. `ui dump --display 115` enumerated 35 nodes of the settings tree.
+- Unicode input channel 1 (a11y `ACTION_SET_TEXT`): `input text '中文测试😀多屏' --display 115` landed verbatim in the Settings search field (screenshot-verified, emoji intact).
+- Unicode input channel 2 (shell clipboard + Ctrl+V): `type '粘贴通道 🎉'` reported `sent=1, restored=true, replaceAll=true` and replaced the previous content verbatim (screenshot-verified). `type ' 追加OK' --append` preserved existing content and appended (screenshot-verified).
+- Gesture routing: `tap xy 812 60 --display 115` pressed the search-clear button on the virtual display only; the physical screen stayed on the user's foreground app throughout.
+- Fail-closed behaviour: `--display abc` → `INVALID_ARGS`; `--display=-1` → `INVALID_ARGS (must not be negative)`; bare `--display -1` → `INVALID_ARGS (requires a value)`; `input key BACK --display 115` → `DISPLAY_UNSUPPORTED`; cross-display node ops (`tap node`/`input text --node` on a display-0 node with `--display 115`) → `NODE_DISPLAY_MISMATCH` with a re-dump hint.
+- Clipboard restore: both paste calls reported `restored=true` (read-back verified in the shell service). The user's clip contents were never read into this session.
+
+Known limits observed: `--display -1` (space form) is rejected as "missing value" rather than "negative" because `-1` is tokenized as a flag; both forms fail closed. `--display 999` on a nonexistent display yields an empty tree rather than a dedicated error code.
 
 ```sh
 android-vdisplay start --width 1080 --height 2400 --dpi 440
