@@ -88,7 +88,14 @@ Local sandbox doctor currently reports a missing JDK/SDK toolchain. Windows SSH 
 
 ## Floating overlay & multi-display acceptance (current build)
 
-CI evidence (run 26, commit `2440dea`): 171 focused VDisplay unit tests passed (9 suites incl. `VDisplayFloatingOverlayMathTest` 60/60 and `VDisplayFloatingOverlayContractTest` 8/8, 0 failed/skipped), Release/R8 assembly succeeded, and the workflow verified the APK signature (`apksigner verify`, CN=OpenMinis Preview), package `com.openminis.app.preview.vdisplay`, non-debuggable, `arm64-v8a`-only native code, and recorded SHA-256 `53f84c27…f41d`. Published as `vdisplay-preview-26` (fixes `MinisApp.onCreate` init order so `VDisplayFloatingOverlayController.init` runs after `backgroundSettingsRepository`). Device acceptance of the floating preview window is pending installation of `vdisplay-preview-26`.
+CI evidence (run 26, commit `2440dea`): 171 focused VDisplay unit tests passed (9 suites incl. `VDisplayFloatingOverlayMathTest` 60/60 and `VDisplayFloatingOverlayContractTest` 8/8, 0 failed/skipped), Release/R8 assembly succeeded, and the workflow verified the APK signature (`apksigner verify`, CN=OpenMinis Preview), package `com.openminis.app.preview.vdisplay`, non-debuggable, `arm64-v8a`-only native code, and recorded SHA-256 `53f84c27…f41d`. Published as `vdisplay-preview-26` (fixes `MinisApp.onCreate` init order so `VDisplayFloatingOverlayController.init` runs after `backgroundSettingsRepository`).
+
+Device acceptance of the floating preview window (Xiaomi 15, Android 17/API 37, `vdisplay-preview-26`, Display #122):
+
+- Cross-app global overlay: `TYPE_APPLICATION_OVERLAY` attached at `(829,173)` (`HAS_DRAWN`, `isVisible=true`) and stayed visible over other foreground apps (`com.facebook.aura`, `org.telegram.messenger`).
+- Drag, expand/collapse & zoom: observed expanded (`507×1365`) and collapsed (`338×745` snapped to `(33,173)`).
+- Close isolation: after tapping `×`, the overlay window was removed from `WindowManager` while display #122 stayed `running=true`, accepted `swipe` back to the top of Settings, and rendered updated frames (`capturedAtMs` advanced).
+- Known UX limit observed: direct-touch mode feels sluggish because the expanded floating preview polls at 4 fps (`250 ms`) and `directTouch` dispatches gestures as whole `swipe` segments on pointer release rather than streaming move events. Acceptable for watch-first monitoring; can be tuned in a future UI pass.
 
 Prior device acceptance (Xiaomi 15, Android 17/API 37, Shizuku READY, install of `vdisplay-preview-22`) — all verified with screenshots:
 
