@@ -10,21 +10,26 @@ def verify(directory: Path) -> int:
         "CoreVDisplayContractTest", "VDisplayUiModelTest",
         "VDisplayHandlerContractTest", "VDisplayScreenshotPathTest",
         "VDisplayCliParseTest", "VDisplayUnicodeContractTest",
+        "VDisplayAccessibilityRoutingContractTest",
     }
     seen = set()
     total = 0
     failures = []
     for path in sorted(directory.glob("TEST-*.xml")):
         suite = ET.parse(path).getroot()
-        count = int(suite.get("tests", "0"))
         name = suite.get("name", "")
+        # The results directory can also contain report stubs from other
+        # filters in the same task; they are not part of this contract.
+        if "VDisplay" not in name:
+            continue
+        count = int(suite.get("tests", "0"))
         seen.add(name.rsplit(".", 1)[-1])
         total += count
         failed = int(suite.get("failures", "0")) + int(suite.get("errors", "0"))
         skipped = int(suite.get("skipped", "0"))
         print(f"{name}: tests={count}, failed={failed}, skipped={skipped}")
-        if "VDisplay" not in name or count == 0 or failed or skipped:
-            failures.append(f"unexpected, empty, failed or skipped suite: {name}")
+        if count == 0 or failed or skipped:
+            failures.append(f"empty, failed or skipped suite: {name}")
     missing = required - seen
     if missing:
         failures.append("missing required suites: " + ", ".join(sorted(missing)))
