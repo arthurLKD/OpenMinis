@@ -157,12 +157,12 @@ jobs:
           test -s "$APK"
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
           BADGING=$("$BUILD_TOOLS/aapt" dump badging "$APK")
-          printf '%s\n' "$BADGING" | rg "^package: name='$EXPECTED_PACKAGE' "
-          if printf '%s\n' "$BADGING" | rg '^application-debuggable'; then
+          printf '%s\n' "$BADGING" | grep -E "^package: name='$EXPECTED_PACKAGE' "
+          if printf '%s\n' "$BADGING" | grep -q '^application-debuggable'; then
             echo 'Release APK must not be debuggable' >&2
             exit 1
           fi
-          printf '%s\n' "$BADGING" | rg "^native-code: 'arm64-v8a'$"
+          printf '%s\n' "$BADGING" | grep -E "^native-code: 'arm64-v8a'$"
           sha256sum "$APK"
 
       - name: Upload APK to Artifacts
