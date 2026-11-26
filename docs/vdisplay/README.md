@@ -87,7 +87,7 @@ Local sandbox doctor currently reports a missing JDK/SDK toolchain. Windows SSH 
 
 ## Unicode and multi-display acceptance (current change)
 
-The new implementation is under review; CI and device acceptance must be recorded separately. The preceding 83-test build does not validate these new paths.
+CI evidence (run 22, commit `d5f78af`): 103 focused VDisplay unit tests passed (7 suites, 0 failed/skipped), Release/R8 assembly succeeded, and the workflow verified the APK signature (`apksigner verify`, CN=OpenMinis Preview), package `com.openminis.app.preview.vdisplay`, non-debuggable, `arm64-v8a`-only native code, and recorded its SHA-256. Published as `vdisplay-preview-22`. Device-level acceptance (Chinese paste, multi-display routing, clipboard restore) is still pending and must be recorded separately.
 
 ```sh
 android-vdisplay start --width 1080 --height 2400 --dpi 440
