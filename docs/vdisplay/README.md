@@ -88,7 +88,7 @@ Local sandbox doctor currently reports a missing JDK/SDK toolchain. Windows SSH 
 
 ## Floating overlay & multi-display acceptance (current build)
 
-CI evidence (run 25, commit `0455437`): 171 focused VDisplay unit tests passed (9 suites incl. `VDisplayFloatingOverlayMathTest` 60/60 and `VDisplayFloatingOverlayContractTest` 8/8, 0 failed/skipped), Release/R8 assembly succeeded, and the workflow verified the APK signature (`apksigner verify`, CN=OpenMinis Preview), package `com.openminis.app.preview.vdisplay`, non-debuggable, `arm64-v8a`-only native code, and recorded SHA-256 `60df847d…12b`. Published as `vdisplay-preview-25`. Device acceptance of the floating preview window (cross-app display, drag/zoom/close isolation, Watch vs Touch mode) is pending installation of `vdisplay-preview-25`.
+CI evidence (run 26, commit `2440dea`): 171 focused VDisplay unit tests passed (9 suites incl. `VDisplayFloatingOverlayMathTest` 60/60 and `VDisplayFloatingOverlayContractTest` 8/8, 0 failed/skipped), Release/R8 assembly succeeded, and the workflow verified the APK signature (`apksigner verify`, CN=OpenMinis Preview), package `com.openminis.app.preview.vdisplay`, non-debuggable, `arm64-v8a`-only native code, and recorded SHA-256 `53f84c27…f41d`. Published as `vdisplay-preview-26` (fixes `MinisApp.onCreate` init order so `VDisplayFloatingOverlayController.init` runs after `backgroundSettingsRepository`). Device acceptance of the floating preview window is pending installation of `vdisplay-preview-26`.
 
 Prior device acceptance (Xiaomi 15, Android 17/API 37, Shizuku READY, install of `vdisplay-preview-22`) — all verified with screenshots:
 
