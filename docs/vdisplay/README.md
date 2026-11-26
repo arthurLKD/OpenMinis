@@ -86,11 +86,11 @@ Local sandbox doctor currently reports a missing JDK/SDK toolchain. Windows SSH 
 8. Physical-screen on/off and focus isolation, reporting ROM-specific failures honestly.
 9. Existing OpenUI rendering remains functional.
 
-## Unicode and multi-display acceptance (current change)
+## Floating overlay & multi-display acceptance (current build)
 
-CI evidence (run 22, commit `d5f78af`): 103 focused VDisplay unit tests passed (7 suites, 0 failed/skipped), Release/R8 assembly succeeded, and the workflow verified the APK signature (`apksigner verify`, CN=OpenMinis Preview), package `com.openminis.app.preview.vdisplay`, non-debuggable, `arm64-v8a`-only native code, and recorded its SHA-256. Published as `vdisplay-preview-22`.
+CI evidence (run 25, commit `0455437`): 171 focused VDisplay unit tests passed (9 suites incl. `VDisplayFloatingOverlayMathTest` 60/60 and `VDisplayFloatingOverlayContractTest` 8/8, 0 failed/skipped), Release/R8 assembly succeeded, and the workflow verified the APK signature (`apksigner verify`, CN=OpenMinis Preview), package `com.openminis.app.preview.vdisplay`, non-debuggable, `arm64-v8a`-only native code, and recorded SHA-256 `60df847d…12b`. Published as `vdisplay-preview-25`. Device acceptance of the floating preview window (cross-app display, drag/zoom/close isolation, Watch vs Touch mode) is pending installation of `vdisplay-preview-25`.
 
-Device acceptance (Xiaomi 15, Android 17/API 37, Shizuku READY, install of `vdisplay-preview-22`) — all verified with screenshots:
+Prior device acceptance (Xiaomi 15, Android 17/API 37, Shizuku READY, install of `vdisplay-preview-22`) — all verified with screenshots:
 
 - Multi-display routing: `ui info --display 115` returned only the Settings window on the virtual display; without `--display` only display 0 was reported. `ui dump --display 115` enumerated 35 nodes of the settings tree.
 - Unicode input channel 1 (a11y `ACTION_SET_TEXT`): `input text '中文测试😀多屏' --display 115` landed verbatim in the Settings search field (screenshot-verified, emoji intact).
