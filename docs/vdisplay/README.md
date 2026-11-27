@@ -88,9 +88,9 @@ Local sandbox doctor currently reports a missing JDK/SDK toolchain. Windows SSH 
 
 ## Floating overlay & multi-display acceptance (current build)
 
-CI evidence (run 26, commit `2440dea`): 171 focused VDisplay unit tests passed (9 suites incl. `VDisplayFloatingOverlayMathTest` 60/60 and `VDisplayFloatingOverlayContractTest` 8/8, 0 failed/skipped), Release/R8 assembly succeeded, and the workflow verified the APK signature (`apksigner verify`, CN=OpenMinis Preview), package `com.openminis.app.preview.vdisplay`, non-debuggable, `arm64-v8a`-only native code, and recorded SHA-256 `53f84c27…f41d`. Published as `vdisplay-preview-26` (fixes `MinisApp.onCreate` init order so `VDisplayFloatingOverlayController.init` runs after `backgroundSettingsRepository`).
+CI evidence (run 27, commit `df0fe47`): keeps package `com.openminis.app.preview.vdisplay` while updating `app_name` to `Minis` across `debug`/`release` (`values` & `values-zh`). 171 focused VDisplay unit tests passed (9 suites, 0 failed/skipped), Release/R8 assembly succeeded, and `aapt dump badging` + `apksigner verify` confirmed `package: name='com.openminis.app.preview.vdisplay'`, `application-label:'Minis'` / `application-label-zh:'Minis'`, non-debuggable, `arm64-v8a`, signer SHA-256 `89f226ab…3f91`, APK SHA-256 `690f53d1…e2af`. Published as `vdisplay-preview-27`.
 
-Device acceptance of the floating preview window (Xiaomi 15, Android 17/API 37, `vdisplay-preview-26`, Display #122):
+Prior CI & device acceptance (`vdisplay-preview-26`, commit `2440dea`, run 26, SHA-256 `53f84c27…f41d`, Xiaomi 15 Android 17 Display #122):
 
 - Cross-app global overlay: `TYPE_APPLICATION_OVERLAY` attached at `(829,173)` (`HAS_DRAWN`, `isVisible=true`) and stayed visible over other foreground apps (`com.facebook.aura`, `org.telegram.messenger`).
 - Drag, expand/collapse & zoom: observed expanded (`507×1365`) and collapsed (`338×745` snapped to `(33,173)`).
