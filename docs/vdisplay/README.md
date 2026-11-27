@@ -56,7 +56,7 @@ android-vdisplay stop
 
 ## Build and release
 
-`.github/workflows/build-android.yml` builds `feature/vdisplay-support` with `:app:assembleRelease` and publishes separately named `MinisApp-VDisplay-preview-arm64-v8a.apk` / `vdisplay-preview-*` artifacts with application ID `com.openminis.app.preview.vdisplay` (app name: `Minis (VDisplay)`), allowing co-existence with both official Minis and the OpenUI preview build. Verify signing certificate compatibility before installation and back up important data.
+`.github/workflows/build-android.yml` builds `feature/vdisplay-support` with `:app:assembleRelease` and publishes separately named `MinisApp-VDisplay-preview-arm64-v8a.apk` / `vdisplay-preview-*` artifacts with application ID `com.openminis.app.preview.vdisplay` (app name: `Minis`), allowing co-existence with both official Minis and the OpenUI preview build. Verify signing certificate compatibility before installation and back up important data.
 
 The workflow runs the focused tests and the release assembly as two steps with their own time limits (20 and 35 minutes inside a 60-minute job). Test reports are uploaded on every outcome, so a failure leaves XML/HTML behind. Before publishing, the workflow runs `apksigner verify`, checks the exact application ID, rejects debuggable APKs, checks arm64-v8a-only native code, and records SHA-256.
 

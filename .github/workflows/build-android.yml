@@ -158,6 +158,7 @@ jobs:
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
           BADGING=$("$BUILD_TOOLS/aapt" dump badging "$APK")
           printf '%s\n' "$BADGING" | grep -E "^package: name='$EXPECTED_PACKAGE' "
+          printf '%s\n' "$BADGING" | grep -E "^application-label" || true
           if printf '%s\n' "$BADGING" | grep -q '^application-debuggable'; then
             echo 'Release APK must not be debuggable' >&2
             exit 1
